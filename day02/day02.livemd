@@ -1,0 +1,91 @@
+# Day 02
+
+## Input
+
+```elixir
+test_string = """
+A Y
+B X
+C Z
+"""
+```
+
+```elixir
+input_string = File.read!("./input.txt")
+```
+
+```elixir
+defmodule InputTranslate do
+  def shapeFromChar(x) when x in ["A", "X"], do: :rock
+  def shapeFromChar(x) when x in ["B", "Y"], do: :paper
+  def shapeFromChar(x) when x in ["C", "Z"], do: :scissors
+end
+```
+
+```elixir
+input =
+  test_string
+  |> String.split()
+  |> Enum.map(&InputTranslate.shapeFromChar/1)
+  |> Enum.chunk_every(2)
+  |> Enum.map(&List.to_tuple/1)
+```
+
+## Part 1
+
+```elixir
+defmodule Score do
+  def shapeScore({_, :rock}), do: 1
+  def shapeScore({_, :paper}), do: 2
+  def shapeScore({_, :scissors}), do: 3
+
+  def outcomeScore({:scissors, :rock}), do: 6
+  def outcomeScore({:paper, :scissors}), do: 6
+  def outcomeScore({:rock, :paper}), do: 6
+  def outcomeScore({a, a}), do: 3
+  def outcomeScore(_), do: 0
+end
+```
+
+```elixir
+input
+|> Enum.map(fn x -> Score.shapeScore(x) + Score.outcomeScore(x) end)
+|> Enum.sum()
+```
+
+## Part 2
+
+```elixir
+defmodule InputTranslate2 do
+  def shapeFromChar("A"), do: :rock
+  def shapeFromChar("B"), do: :paper
+  def shapeFromChar("C"), do: :scissors
+  def shapeFromChar("X"), do: :lose
+  def shapeFromChar("Y"), do: :draw
+  def shapeFromChar("Z"), do: :win
+
+  def pickAction({:rock, :win}), do: {:rock, :paper}
+  def pickAction({:rock, :lose}), do: {:rock, :scissors}
+  def pickAction({:paper, :win}), do: {:paper, :scissors}
+  def pickAction({:paper, :lose}), do: {:paper, :rock}
+  def pickAction({:scissors, :win}), do: {:scissors, :rock}
+  def pickAction({:scissors, :lose}), do: {:scissors, :paper}
+  def pickAction({x, :draw}), do: {x, x}
+end
+```
+
+```elixir
+input =
+  input_string
+  |> String.split()
+  |> Enum.map(&InputTranslate2.shapeFromChar/1)
+  |> Enum.chunk_every(2)
+  |> Enum.map(&List.to_tuple/1)
+  |> Enum.map(&InputTranslate2.pickAction/1)
+```
+
+```elixir
+input
+|> Enum.map(fn x -> Score.shapeScore(x) + Score.outcomeScore(x) end)
+|> Enum.sum()
+```
