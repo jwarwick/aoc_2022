@@ -1,0 +1,59 @@
+# Day 3
+
+## Section
+
+```elixir
+test_input = """
+vJrwpWtwJgWrhcsFMMfFFhFp
+jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL
+PmmdzqPrVvPwwTWBwg
+wMqvLMZHhHMvwLHjbvcjnnSBnvTQFn
+ttgJtRGJQctTZtZT
+CrZsJsPPZsGzwwsLwLmpwMDw
+"""
+```
+
+```elixir
+input = File.read!("./input.txt")
+```
+
+## Part 1
+
+```elixir
+defmodule Rucksack do
+  def new(str) do
+    l = String.length(str)
+    {r1, r2} = String.split_at(str, trunc(l / 2))
+    {MapSet.new(String.to_charlist(r1)), MapSet.new(String.to_charlist(r2))}
+  end
+
+  def score(x) when x in ?a..?z, do: x - ?a + 1
+  def score(x) when x in ?A..?Z, do: x - ?A + 27
+end
+```
+
+```elixir
+input
+|> String.split()
+|> Enum.map(&Rucksack.new/1)
+|> Enum.map(fn {r1, r2} -> MapSet.intersection(r1, r2) end)
+|> Enum.map(&MapSet.to_list/1)
+|> Enum.map(&hd/1)
+|> Enum.map(&Rucksack.score/1)
+|> Enum.sum()
+```
+
+## Part 2
+
+```elixir
+input
+|> String.split()
+|> Enum.map(&String.to_charlist/1)
+|> Enum.map(&MapSet.new/1)
+|> Enum.chunk_every(3)
+|> Enum.map(fn [x, y, z] -> MapSet.intersection(x, MapSet.intersection(y, z)) end)
+|> Enum.map(&MapSet.to_list/1)
+|> Enum.map(&hd/1)
+|> Enum.map(&Rucksack.score/1)
+|> Enum.sum()
+```
