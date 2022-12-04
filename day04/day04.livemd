@@ -1,0 +1,64 @@
+# Day 4
+
+## Section
+
+```elixir
+test_input = """
+2-4,6-8
+2-3,4-5
+5-7,7-9
+2-8,3-7
+6-6,4-6
+2-6,4-8
+"""
+```
+
+```elixir
+input = File.read!("./input.txt")
+```
+
+## Part 1
+
+```elixir
+defmodule Assignments do
+  def parse(str) do
+    str
+    |> String.split()
+    |> Enum.map(&parse_line/1)
+  end
+
+  defp parse_line(str) do
+    str
+    |> String.split(",")
+    |> Enum.map(&String.split(&1, "-"))
+    |> List.flatten()
+    |> Enum.map(&String.to_integer/1)
+  end
+
+  def contains?([x1, x2, y1, y2]) do
+    (x1 >= y1 && x2 <= y2) || (y1 >= x1 && y2 <= x2)
+  end
+
+  def overlapped?([x1, _, y1, y2]) when x1 in y1..y2, do: true
+  def overlapped?([_, x2, y1, y2]) when x2 in y1..y2, do: true
+  def overlapped?([x1, x2, y1, _]) when y1 in x1..x2, do: true
+  def overlapped?([x1, x2, _, y2]) when y2 in x1..x2, do: true
+  def overlapped?(_), do: false
+end
+```
+
+```elixir
+input
+|> Assignments.parse()
+|> Enum.filter(&Assignments.contains?/1)
+|> Enum.count()
+```
+
+## Part 2
+
+```elixir
+input
+|> Assignments.parse()
+|> Enum.filter(&Assignments.overlapped?/1)
+|> Enum.count()
+```
