@@ -1,0 +1,109 @@
+# Day 5
+
+## Section
+
+```elixir
+test_input = """
+    [D]    
+[N] [C]    
+[Z] [M] [P]
+ 1   2   3 
+
+move 1 from 2 to 1
+move 3 from 1 to 3
+move 2 from 2 to 1
+move 1 from 1 to 2
+"""
+```
+
+```elixir
+input = File.read!("./input.txt")
+```
+
+## Part 1
+
+```elixir
+defmodule Crates do
+  def parse_crate(s) do
+    s
+    |> String.graphemes()
+    |> Enum.with_index()
+    |> Enum.filter(fn {c, _} -> c != " " && c != "[" && c != "]" end)
+    |> Enum.map(fn {c, idx} -> {c, trunc((idx - 1) / 4) + 1} end)
+  end
+
+  def add([], acc), do: acc
+
+  def add([{s, idx} | rest], acc) do
+    curr = Map.get(acc, idx, [])
+    add(rest, Map.put(acc, idx, [s | curr]))
+  end
+
+  def move({cnt, from, to}, state, reverse \\ true) do
+    {moved, remain} = Map.get(state, from, []) |> Enum.split(cnt)
+
+    moved =
+      if reverse do
+        Enum.reverse(moved)
+      else
+        moved
+      end
+
+    state = Map.put(state, from, remain)
+    curr = Map.get(state, to, [])
+    curr = List.flatten([moved | curr])
+    state = Map.put(state, to, curr)
+    state
+  end
+end
+```
+
+```elixir
+crates =
+  input
+  |> String.split("\n")
+  |> Enum.take_while(&(&1 != ""))
+  |> Enum.drop(-1)
+  |> Enum.map(&Crates.parse_crate/1)
+  |> Enum.reverse()
+  |> Enum.reduce(%{}, &Crates.add(&1, &2))
+```
+
+```elixir
+instr =
+  input
+  |> String.split("\n")
+  |> Enum.drop_while(&(&1 != ""))
+  |> Enum.drop(1)
+  |> Enum.drop(-1)
+  |> Enum.map(&String.split/1)
+  |> Enum.map(fn [_, c, _, s, _, e] ->
+    {String.to_integer(c), String.to_integer(s), String.to_integer(e)}
+  end)
+```
+
+```elixir
+final = Enum.reduce(instr, crates, &Crates.move/2)
+k = Enum.sort(Map.keys(final))
+
+result =
+  for i <- k do
+    hd(Map.get(final, i, ""))
+  end
+
+Enum.join(result)
+```
+
+## Part 2
+
+```elixir
+final = Enum.reduce(instr, crates, &Crates.move(&1, &2, false))
+k = Enum.sort(Map.keys(final))
+
+result =
+  for i <- k do
+    hd(Map.get(final, i, ""))
+  end
+
+Enum.join(result)
+```
