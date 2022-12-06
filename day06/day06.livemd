@@ -1,0 +1,58 @@
+# Day 6
+
+## Section
+
+```elixir
+# 7
+test_input = "mjqjpqmgbljsphdztnvjfqwrcgsmlb"
+# 5
+test_input2 = "bvwbjplbgvbhsrlpgdmjqwftvncz"
+# 6
+test_input3 = "nppdvjthqldpwncqszvftbrmjlhg"
+# 10
+test_input4 = "nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"
+# 11
+test_input5 = "zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"
+
+input = File.read!("./input.txt")
+```
+
+## Part 1
+
+```elixir
+defmodule Device do
+  def start_of_packet(s, num \\ 4) do
+    values = String.to_charlist(s)
+    start = Enum.take(values, num)
+    rest = Enum.drop(values, num)
+
+    rest
+    |> Enum.reduce([start], &Device.build_groups/2)
+    |> Enum.reverse()
+    |> Enum.with_index()
+    |> Enum.filter(fn {l, _} -> num == length(Enum.uniq(l)) end)
+    |> Enum.map(fn {_, idx} -> idx + num end)
+    |> hd()
+  end
+
+  def build_groups(val, acc = [[_ | curr_rest] | _rest]) do
+    [curr_rest ++ [val] | acc]
+  end
+end
+```
+
+```elixir
+IO.inspect(Device.start_of_packet(test_input), label: "Should be 4")
+IO.inspect(Device.start_of_packet(test_input2), label: "Should be 5")
+IO.inspect(Device.start_of_packet(test_input3), label: "Should be 6")
+IO.inspect(Device.start_of_packet(test_input4), label: "Should be 10")
+IO.inspect(Device.start_of_packet(test_input5), label: "Should be 11")
+Device.start_of_packet(input)
+```
+
+## Part 2
+
+```elixir
+IO.inspect(Device.start_of_packet(test_input, 14), label: "Should be 19")
+Device.start_of_packet(input, 14)
+```
