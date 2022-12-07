@@ -22,21 +22,13 @@ input = File.read!("./input.txt")
 ```elixir
 defmodule Device do
   def start_of_packet(s, num \\ 4) do
-    values = String.to_charlist(s)
-    start = Enum.take(values, num)
-    rest = Enum.drop(values, num)
-
-    rest
-    |> Enum.reduce([start], &Device.build_groups/2)
-    |> Enum.reverse()
+    s
+    |> String.to_charlist()
+    |> Enum.chunk_every(num, 1, :discard)
     |> Enum.with_index()
     |> Enum.filter(fn {l, _} -> num == length(Enum.uniq(l)) end)
     |> Enum.map(fn {_, idx} -> idx + num end)
     |> hd()
-  end
-
-  def build_groups(val, acc = [[_ | curr_rest] | _rest]) do
-    [curr_rest ++ [val] | acc]
   end
 end
 ```
