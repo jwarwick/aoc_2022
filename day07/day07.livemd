@@ -1,0 +1,107 @@
+# Day 7
+
+## Section
+
+```elixir
+test_input = """
+$ cd /
+$ ls
+dir a
+14848514 b.txt
+8504156 c.dat
+dir d
+$ cd a
+$ ls
+dir e
+29116 f
+2557 g
+62596 h.lst
+$ cd e
+$ ls
+584 i
+$ cd ..
+$ cd ..
+$ cd d
+$ ls
+4060174 j
+8033020 d.log
+5626152 d.ext
+7214296 k
+"""
+
+input = File.read!("./input.txt")
+```
+
+## Part 1
+
+```elixir
+defmodule Device do
+  def parse(str) do
+    {_, state} =
+      str
+      |> String.split("\n", trim: true)
+      |> Enum.reduce({[], Map.put(%{}, ["/"], 0)}, &parse_line/2)
+
+    state
+  end
+
+  def parse_line("$ cd ..", {cwd, state}) do
+    {Enum.drop(cwd, -1), state}
+  end
+
+  def parse_line("$ cd " <> dir, {cwd, state}) do
+    {cwd ++ [dir], state}
+  end
+
+  def parse_line("dir " <> dir, {cwd, state}) do
+    {cwd, Map.put(state, cwd ++ [dir], 0)}
+  end
+
+  def parse_line("$ ls", acc), do: acc
+
+  def parse_line(line, {cwd, state}) do
+    [size, _name] = String.split(line)
+    size = String.to_integer(size)
+    {cwd, add_sizes(size, cwd, state)}
+  end
+
+  def add_sizes(_size, [], state), do: state
+
+  def add_sizes(size, path, state) do
+    state = Map.update(state, path, 0, &(&1 + size))
+    add_sizes(size, Enum.drop(path, -1), state)
+  end
+end
+```
+
+```elixir
+state = Device.parse(input)
+
+sizes =
+  state
+  |> Map.to_list()
+  |> Enum.map(fn {_, s} -> s end)
+```
+
+```elixir
+sizes
+|> Enum.filter(&(&1 <= 100_000))
+|> Enum.sum()
+```
+
+## Part 2
+
+```elixir
+total_space = 70_000_000
+needed_space = 30_000_000
+curr_used = Map.get(state, ["/"])
+curr_free_space = total_space - curr_used
+still_need = needed_space - curr_free_space
+```
+
+```elixir
+sizes
+|> Enum.sort()
+|> Enum.reject(&(&1 < still_need))
+|> hd()
+```
