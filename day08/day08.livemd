@@ -1,0 +1,143 @@
+# Day 8
+
+## Setup
+
+```elixir
+test_input = """
+30373
+25512
+65332
+33549
+35390
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Forest do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.graphemes/1)
+    |> Enum.map(fn x -> Enum.map(x, &String.to_integer(&1)) end)
+    |> Enum.map(fn x -> Enum.map(x, fn y -> {y, {nil, nil, nil, nil}} end) end)
+    |> Enum.map(&compute_left/1)
+    |> Enum.map(&compute_right/1)
+    |> Enum.zip()
+    |> Enum.map(&Tuple.to_list/1)
+    |> Enum.map(&compute_left(&1, 2))
+    |> Enum.map(&compute_right(&1, 3))
+    |> Enum.zip()
+    |> Enum.map(&Tuple.to_list/1)
+  end
+
+  def compute_left(row, idx \\ 0) do
+    {_max, result} = Enum.reduce(row, {-1, []}, &check_field(&1, &2, idx))
+    Enum.reverse(result)
+  end
+
+  def compute_right(row, idx \\ 1) do
+    row
+    |> Enum.reverse()
+    |> compute_left(idx)
+    |> Enum.reverse()
+  end
+
+  def check_field({height, info}, {max, acc}, idx) do
+    if height > max do
+      {height, [{height, put_elem(info, idx, true)} | acc]}
+    else
+      {max, [{height, put_elem(info, idx, false)} | acc]}
+    end
+  end
+end
+```
+
+## Part 1
+
+```elixir
+input
+|> Forest.parse()
+|> List.flatten()
+|> Enum.map(fn {_height, l} -> l end)
+|> Enum.map(&Tuple.to_list/1)
+|> Enum.map(&Enum.any?/1)
+|> Enum.filter(& &1)
+|> Enum.count()
+```
+
+## Part 2
+
+```elixir
+defmodule View do
+  def parse(str) do
+    heights =
+      str
+      |> String.split("\n", trim: true)
+      |> Enum.map(&String.graphemes/1)
+      |> Enum.map(fn x -> Enum.map(x, &String.to_integer(&1)) end)
+
+    rows = length(heights)
+    cols = length(hd(heights))
+
+    m = map_rows(heights, 0, %{})
+    {rows, cols, m}
+  end
+
+  defp map_rows([], _, acc), do: acc
+
+  defp map_rows([head | rest], row, acc) do
+    acc = map_cols(head, 0, row, acc)
+    map_rows(rest, row + 1, acc)
+  end
+
+  defp map_cols([], _, _, acc), do: acc
+
+  defp map_cols([head | rest], col, row, acc) do
+    acc = Map.put(acc, {col, row}, head)
+    map_cols(rest, col + 1, row, acc)
+  end
+
+  def score(idx = {c, r}, m_info = {m, _, _}) do
+    h = Map.get(m, idx)
+
+    left = elem_score(h, {c - 1, r}, m_info, 0, fn {c, r} -> {c - 1, r} end)
+    right = elem_score(h, {c + 1, r}, m_info, 0, fn {c, r} -> {c + 1, r} end)
+    up = elem_score(h, {c, r - 1}, m_info, 0, fn {c, r} -> {c, r - 1} end)
+    down = elem_score(h, {c, r + 1}, m_info, 0, fn {c, r} -> {c, r + 1} end)
+
+    left * right * up * down
+  end
+
+  defp elem_score(_h, {c, r}, _m, cnt, _fn) when c < 0 or r < 0, do: cnt
+
+  defp elem_score(_h, {c, r}, {_m, max_cols, max_rows}, cnt, _fn)
+       when c >= max_cols or r >= max_rows,
+       do: cnt
+
+  defp elem_score(h, idx, m_info = {m, _, _}, cnt, update) do
+    if h == -1 do
+      elem_score(h, update.(idx), m_info, cnt, update)
+    else
+      curr = Map.get(m, idx)
+      h = if curr >= h, do: -1, else: h
+      elem_score(h, update.(idx), m_info, cnt + 1, update)
+    end
+  end
+end
+```
+
+```elixir
+{rows, cols, m} = View.parse(input)
+
+all =
+  for col <- 0..(cols - 1), row <- 0..(rows - 1) do
+    {col, row}
+  end
+
+all
+|> Enum.map(&{&1, View.score(&1, {m, cols, rows})})
+|> Enum.map(fn {_, val} -> val end)
+|> Enum.max()
+```
