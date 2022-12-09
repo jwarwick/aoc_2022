@@ -1,0 +1,33 @@
+# Day
+
+## Setup
+
+```elixir
+test_input = """
+
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Day do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+test_input
+|> Day.parse()
+```
+
+## Part 2
+
+
+```elixir
+```

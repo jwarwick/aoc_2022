@@ -1,0 +1,160 @@
+# Day 9
+
+## Setup
+
+```elixir
+test_input = """
+R 4
+U 4
+L 3
+D 1
+R 4
+D 1
+L 5
+R 2
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Rope do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.split/1)
+    |> Enum.map(fn [x, y] -> {x, String.to_integer(y)} end)
+  end
+
+  def drag({_, 0}, acc), do: acc
+
+  def drag({dir, n}, {curr_h, curr_t, visited}) do
+    h = move(dir).(curr_h)
+    t = if touching?(h, curr_t), do: curr_t, else: curr_h
+    visited = MapSet.put(visited, t)
+    drag({dir, n - 1}, {h, t, visited})
+  end
+
+  def drag2({_, 0}, acc), do: acc
+
+  def drag2({dir, n}, {curr_h, curr_t, visited}) do
+    h = move(dir).(curr_h)
+    t = if touching?(h, curr_t), do: curr_t, else: new_location(h, curr_t)
+    visited = MapSet.put(visited, t)
+    drag2({dir, n - 1}, {h, t, visited})
+  end
+
+  def drag_many({_, 0}, acc), do: acc
+
+  def drag_many({dir, n}, {curr_h, knots, visited}) do
+    new_h = move(dir).(curr_h)
+
+    {last, new_knots} = Enum.reduce(knots, {new_h, []}, &drag_one/2)
+    new_knots = Enum.reverse(new_knots)
+    new_visited = MapSet.put(visited, last)
+    drag_many({dir, n - 1}, {new_h, new_knots, new_visited})
+  end
+
+  def drag_one(t, {h, acc}) do
+    new_t = if touching?(h, t), do: t, else: new_location(h, t)
+    {new_t, [new_t | acc]}
+  end
+
+  def new_location({hx, hy}, {tx, ty}) do
+    {tx + sign(hx, tx), ty + sign(hy, ty)}
+  end
+
+  defp sign(x, y) do
+    d = x - y
+    a = abs(x - y)
+
+    if d == 0 do
+      0
+    else
+      trunc(d / a)
+    end
+  end
+
+  def touching?({hx, hy}, {tx, ty}) do
+    xd = abs(hx - tx)
+    yd = abs(hy - ty)
+    xd <= 1 && yd <= 1
+  end
+
+  def move("R"), do: fn {x, y} -> {x + 1, y} end
+  def move("L"), do: fn {x, y} -> {x - 1, y} end
+  def move("U"), do: fn {x, y} -> {x, y + 1} end
+  def move("D"), do: fn {x, y} -> {x, y - 1} end
+end
+```
+
+## Part 1
+
+This function assumes that the tail always took the place of the head when a move was required. This property doesn't hold for Part 2.
+
+```elixir
+start = {0, 0}
+
+{end_h, end_t, visited} =
+  input
+  |> Rope.parse()
+  |> Enum.reduce({start, start, MapSet.new([start])}, &Rope.drag/2)
+
+MapSet.size(visited)
+```
+
+Two element version of the real algorithm
+
+```elixir
+start = {0, 0}
+
+{end_h, end_t, visited} =
+  input
+  |> Rope.parse()
+  |> Enum.reduce({start, start, MapSet.new([start])}, &Rope.drag2/2)
+
+MapSet.size(visited)
+```
+
+Many element version of the real algorithm, but tested with 2 knots
+
+```elixir
+start = {0, 0}
+head = start
+knots = for _x <- 1..1, do: start
+
+{end_h, end_knots, visited} =
+  input
+  |> Rope.parse()
+  |> Enum.reduce({head, knots, MapSet.new([start])}, &Rope.drag_many/2)
+
+MapSet.size(visited)
+```
+
+## Part 2
+
+```elixir
+test_input2 = """
+R 5
+U 8
+L 8
+D 3
+R 17
+D 10
+L 25
+U 20
+"""
+```
+
+```elixir
+start = {0, 0}
+head = start
+knots = for _x <- 1..9, do: start
+
+{end_h, end_knots, visited} =
+  input
+  |> Rope.parse()
+  |> Enum.reduce({head, knots, MapSet.new([start])}, &Rope.drag_many/2)
+
+MapSet.size(visited)
+```
