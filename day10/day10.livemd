@@ -1,0 +1,256 @@
+# Day 10
+
+```elixir
+Mix.install([
+  {:kino_vega_lite, "~> 0.1.4"}
+])
+```
+
+## Setup
+
+```elixir
+simple_input = """
+noop
+addx 3
+addx -5
+"""
+
+test_input = """
+addx 15
+addx -11
+addx 6
+addx -3
+addx 5
+addx -1
+addx -8
+addx 13
+addx 4
+noop
+addx -1
+addx 5
+addx -1
+addx 5
+addx -1
+addx 5
+addx -1
+addx 5
+addx -1
+addx -35
+addx 1
+addx 24
+addx -19
+addx 1
+addx 16
+addx -11
+noop
+noop
+addx 21
+addx -15
+noop
+noop
+addx -3
+addx 9
+addx 1
+addx -3
+addx 8
+addx 1
+addx 5
+noop
+noop
+noop
+noop
+noop
+addx -36
+noop
+addx 1
+addx 7
+noop
+noop
+noop
+addx 2
+addx 6
+noop
+noop
+noop
+noop
+noop
+addx 1
+noop
+noop
+addx 7
+addx 1
+noop
+addx -13
+addx 13
+addx 7
+noop
+addx 1
+addx -33
+noop
+noop
+noop
+addx 2
+noop
+noop
+noop
+addx 8
+noop
+addx -1
+addx 2
+addx 1
+noop
+addx 17
+addx -9
+addx 1
+addx 1
+addx -3
+addx 11
+noop
+noop
+addx 1
+noop
+addx 1
+noop
+noop
+addx -13
+addx -19
+addx 1
+addx 3
+addx 26
+addx -30
+addx 12
+addx -1
+addx 3
+addx 1
+noop
+noop
+noop
+addx -9
+addx 18
+addx 1
+addx 2
+noop
+noop
+addx 9
+noop
+noop
+noop
+addx -1
+addx 2
+addx -37
+addx 1
+addx 3
+noop
+addx 15
+addx -21
+addx 22
+addx -6
+addx 1
+noop
+addx 2
+addx 1
+noop
+addx -10
+noop
+noop
+addx 20
+addx 1
+addx 2
+addx 2
+addx -6
+addx -11
+noop
+noop
+noop
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Communicator do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.split/1)
+    |> Enum.map(&parse_instr/1)
+  end
+
+  defp parse_instr(["noop"]), do: {:noop, 0}
+  defp parse_instr(["addx", val]), do: {:addx, String.to_integer(val)}
+
+  def run(instr, reg \\ %{x: 1}, acc \\ [1, 0])
+  def run([], _reg, acc), do: Enum.reverse(acc)
+
+  def run([h | rest], reg, acc) do
+    {new_reg, new_acc} = step(h, reg, acc)
+    run(rest, new_reg, new_acc)
+  end
+
+  def step({:noop, _}, reg, acc) do
+    x = Map.get(reg, :x)
+    {reg, [x | acc]}
+  end
+
+  def step({:addx, val}, reg, acc) do
+    s1 = Map.get(reg, :x)
+    reg = Map.update(reg, :x, 1, &(&1 + val))
+    s2 = Map.get(reg, :x)
+    {reg, [s2, s1 | acc]}
+  end
+end
+
+simple_input
+|> Communicator.parse()
+|> Communicator.run()
+```
+
+## Part 1
+
+```elixir
+vals =
+  input
+  |> Communicator.parse()
+  |> Communicator.run()
+
+cycles =
+  for v <- [20, 60, 100, 140, 180, 220] do
+    {v, Enum.at(vals, v)}
+  end
+
+cycles
+|> Enum.map(fn {x, y} -> x * y end)
+|> Enum.sum()
+```
+
+## Part 2
+
+```elixir
+vals =
+  input
+  |> Communicator.parse()
+  |> Communicator.run()
+
+width = 40
+height = 6
+
+result =
+  for x <- 0..(height - 1) do
+    sub =
+      for y <- 0..(width - 1) do
+        idx = y + x * width
+        sprite = Enum.at(vals, idx + 1)
+
+        if y >= sprite - 1 && y <= sprite + 1 do
+          IO.write("#")
+          {x, y, 100}
+        else
+          IO.write(" ")
+          {x, y, 0}
+        end
+      end
+
+    IO.write("\n")
+    sub
+  end
+```
