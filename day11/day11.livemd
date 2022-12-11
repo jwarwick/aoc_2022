@@ -105,29 +105,38 @@ defmodule Monkey do
     |> String.to_integer()
   end
 
-  def run(0, acc), do: acc
+  def run(acc, cnt, d \\ 3)
+  def run(acc, 0, _d), do: acc
 
-  def run(cnt, acc) do
+  def run(acc, cnt, d) do
     k = Enum.sort(Map.keys(acc))
-    acc = Enum.reduce(k, acc, &do_round/2)
-    run(cnt - 1, acc)
+
+    cycle =
+      acc
+      |> Map.values()
+      |> Enum.map(& &1.test)
+      |> Enum.reduce(&(&1 * &2))
+
+    acc = Enum.reduce(k, acc, &do_round(&1, &2, d, cycle))
+    run(acc, cnt - 1, d)
   end
 
-  defp do_round(curr, acc) do
+  defp do_round(curr, acc, d, cycle) do
     m = Map.get(acc, curr)
-    do_step(m.items, m, acc)
+    do_step(m.items, m, acc, d, cycle)
   end
 
-  defp do_step([], _m, acc), do: acc
+  defp do_step([], _m, acc, _d, _cycle), do: acc
 
-  defp do_step([curr | rest], m, acc) do
+  defp do_step([curr | rest], m, acc, d, cycle) do
     curr = m.op.(curr)
-    curr = trunc(curr / 3)
-    target = if Integer.mod(curr, m.test) == 0, do: m.true_target, else: m.false_target
+    curr = trunc(curr / d)
+    curr = rem(curr, cycle)
+    target = if rem(curr, m.test) == 0, do: m.true_target, else: m.false_target
     acc = update_target(target, curr, acc)
     m = %Monkey{m | items: rest, cnt: m.cnt + 1}
     acc = Map.put(acc, m.num, m)
-    do_step(rest, m, acc)
+    do_step(rest, m, acc, d, cycle)
   end
 
   defp update_target(target, val, acc) do
@@ -136,30 +145,32 @@ defmodule Monkey do
     Map.put(acc, target, %Monkey{m | items: l})
   end
 end
-
-acc = Monkey.parse(test_input)
-Monkey.run(20, acc)
 ```
 
 ## Part 1
 
 ```elixir
-acc = Monkey.parse(input)
-acc = Monkey.run(20, acc)
-
-[m1, m2] =
-  acc
-  |> Map.values()
-  |> Enum.map(fn x -> x.cnt end)
-  |> Enum.sort()
-  |> Enum.reverse()
-  |> Enum.take(2)
-
-m1 * m2
+input
+|> Monkey.parse()
+|> Monkey.run(20)
+|> Map.values()
+|> Enum.map(fn x -> x.cnt end)
+|> Enum.sort()
+|> Enum.reverse()
+|> Enum.take(2)
+|> Enum.reduce(&(&1 * &2))
 ```
 
 ## Part 2
 
 ```elixir
-
+input
+|> Monkey.parse()
+|> Monkey.run(10_000, 1)
+|> Map.values()
+|> Enum.map(fn x -> x.cnt end)
+|> Enum.sort()
+|> Enum.reverse()
+|> Enum.take(2)
+|> Enum.reduce(&(&1 * &2))
 ```
