@@ -1,0 +1,165 @@
+# Day 11
+
+## Setup
+
+```elixir
+test_input = """
+Monkey 0:
+  Starting items: 79, 98
+  Operation: new = old * 19
+  Test: divisible by 23
+    If true: throw to monkey 2
+    If false: throw to monkey 3
+
+Monkey 1:
+  Starting items: 54, 65, 75, 74
+  Operation: new = old + 6
+  Test: divisible by 19
+    If true: throw to monkey 2
+    If false: throw to monkey 0
+
+Monkey 2:
+  Starting items: 79, 60, 97
+  Operation: new = old * old
+  Test: divisible by 13
+    If true: throw to monkey 1
+    If false: throw to monkey 3
+
+Monkey 3:
+  Starting items: 74
+  Operation: new = old + 3
+  Test: divisible by 17
+    If true: throw to monkey 0
+    If false: throw to monkey 1
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Monkey do
+  defstruct [:num, :items, :op, :test, :true_target, :false_target, cnt: 0]
+
+  def parse(str) do
+    str
+    |> String.split("\n\n", trim: true)
+    |> Enum.map(&parse_single/1)
+    |> Enum.into(%{}, fn m = %Monkey{num: num} -> {num, m} end)
+  end
+
+  defp parse_single(str) do
+    lines = String.split(str, "\n", trim: true)
+    num = parse_num(Enum.at(lines, 0))
+    items = parse_items(Enum.at(lines, 1))
+    op = parse_operation(Enum.at(lines, 2))
+    test = last_integer(Enum.at(lines, 3))
+    true_target = last_integer(Enum.at(lines, 4))
+    false_target = last_integer(Enum.at(lines, 5))
+
+    %Monkey{
+      num: num,
+      items: items,
+      op: op,
+      test: test,
+      true_target: true_target,
+      false_target: false_target
+    }
+  end
+
+  defp parse_num(str) do
+    str
+    |> String.split(" ", trim: true)
+    |> Enum.drop(1)
+    |> hd()
+    |> String.trim(":")
+    |> String.to_integer()
+  end
+
+  defp parse_items(str) do
+    str
+    |> String.split(":")
+    |> Enum.drop(1)
+    |> hd()
+    |> String.trim_leading()
+    |> String.split(", ", trim: true)
+    |> Enum.map(&String.to_integer/1)
+  end
+
+  defp parse_operation(str) do
+    str
+    |> String.split(" ", trim: true)
+    |> Enum.drop(4)
+    |> make_op_fun()
+  end
+
+  defp make_op_fun(["+", "old"]), do: &(&1 + &1)
+  defp make_op_fun(["*", "old"]), do: &(&1 * &1)
+  defp make_op_fun(["+", val]), do: &(&1 + String.to_integer(val))
+  defp make_op_fun(["*", val]), do: &(&1 * String.to_integer(val))
+
+  defp last_integer(str) do
+    str
+    |> String.split(" ", trim: true)
+    |> Enum.reverse()
+    |> hd()
+    |> String.to_integer()
+  end
+
+  def run(0, acc), do: acc
+
+  def run(cnt, acc) do
+    k = Enum.sort(Map.keys(acc))
+    acc = Enum.reduce(k, acc, &do_round/2)
+    run(cnt - 1, acc)
+  end
+
+  defp do_round(curr, acc) do
+    m = Map.get(acc, curr)
+    do_step(m.items, m, acc)
+  end
+
+  defp do_step([], _m, acc), do: acc
+
+  defp do_step([curr | rest], m, acc) do
+    curr = m.op.(curr)
+    curr = trunc(curr / 3)
+    target = if Integer.mod(curr, m.test) == 0, do: m.true_target, else: m.false_target
+    acc = update_target(target, curr, acc)
+    m = %Monkey{m | items: rest, cnt: m.cnt + 1}
+    acc = Map.put(acc, m.num, m)
+    do_step(rest, m, acc)
+  end
+
+  defp update_target(target, val, acc) do
+    m = Map.get(acc, target)
+    l = m.items ++ [val]
+    Map.put(acc, target, %Monkey{m | items: l})
+  end
+end
+
+acc = Monkey.parse(test_input)
+Monkey.run(20, acc)
+```
+
+## Part 1
+
+```elixir
+acc = Monkey.parse(input)
+acc = Monkey.run(20, acc)
+
+[m1, m2] =
+  acc
+  |> Map.values()
+  |> Enum.map(fn x -> x.cnt end)
+  |> Enum.sort()
+  |> Enum.reverse()
+  |> Enum.take(2)
+
+m1 * m2
+```
+
+## Part 2
+
+```elixir
+
+```
