@@ -1,0 +1,124 @@
+# Day 12
+
+## Setup
+
+```elixir
+test_input = """
+Sabqponm
+abcryxxl
+accszExk
+acctuvwj
+abdefghi
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Terrain do
+  defstruct [:start, :finish, :heights]
+
+  def parse(str) do
+    heights =
+      str
+      |> String.split("\n", trim: true)
+      |> Enum.map(&String.to_charlist/1)
+      |> Enum.map(fn l -> Enum.with_index(l) end)
+      |> Enum.with_index()
+      |> Enum.map(&parse_row/1)
+      |> List.flatten()
+      |> Enum.into(%{})
+
+    {{sx, sy}, _} = find_char(?S, heights)
+    {{fx, fy}, _} = find_char(?E, heights)
+
+    heights = Map.put(heights, {sx, sy}, {{sx, sy}, ?a})
+    heights = Map.put(heights, {fx, fy}, {{fx, fy}, ?z})
+    %Terrain{heights: heights, start: {sx, sy}, finish: {fx, fy}}
+  end
+
+  def find_char(c, m) do
+    m
+    |> Map.values()
+    |> Enum.filter(fn {{_, _}, v} -> v == c end)
+    |> hd()
+  end
+
+  defp parse_row({l, r}) do
+    Enum.map(l, fn {h, c} -> {{c, r}, {{c, r}, h}} end)
+  end
+
+  defmodule SearchNode do
+    defstruct [:coord, :path]
+  end
+
+  def search(t, start, finish) do
+    do_search([%SearchNode{coord: start, path: []}], finish, t.heights, MapSet.new([start]))
+  end
+
+  def do_search([], _, _, _), do: nil
+
+  def do_search([head | rest], target, heights, visited) do
+    if head.coord == target do
+      Enum.reverse(head.path)
+    else
+      {_, curr_height} = Map.get(heights, head.coord)
+
+      n =
+        neighbors(head.coord, heights)
+        |> Enum.filter(fn {_loc, h} -> h - 1 <= curr_height end)
+        |> Enum.reject(fn {loc, _} -> MapSet.member?(visited, loc) end)
+        |> Enum.map(fn {loc, _} -> %SearchNode{coord: loc, path: [loc | head.path]} end)
+
+      do_search(rest ++ n, target, heights, add_visited(n, visited))
+    end
+  end
+
+  defp add_visited([], acc), do: acc
+
+  defp add_visited([%SearchNode{coord: coord} | rest], acc) do
+    add_visited(rest, MapSet.put(acc, coord))
+  end
+
+  defp neighbors({x, y}, heights) do
+    u = get_neighbor({x, y - 1}, heights)
+    d = get_neighbor({x, y + 1}, heights)
+    l = get_neighbor({x - 1, y}, heights)
+    r = get_neighbor({x + 1, y}, heights)
+    [u, d, l, r]
+  end
+
+  defp get_neighbor({x, y}, heights) do
+    Map.get(heights, {x, y}, {{-1, -1}, 1000})
+  end
+end
+```
+
+## Part 1
+
+```elixir
+t =
+  input
+  |> Terrain.parse()
+
+Terrain.search(t, t.start, t.finish)
+|> Enum.count()
+```
+
+## Part 2
+
+```elixir
+t =
+  input
+  |> Terrain.parse()
+
+starts =
+  Map.values(t.heights)
+  |> Enum.filter(fn {_, h} -> h == ?a end)
+  |> Enum.map(fn {loc, _} -> loc end)
+  |> Enum.map(fn loc -> Terrain.search(t, loc, t.finish) end)
+  |> Enum.reject(&(&1 == nil))
+  |> Enum.map(&Enum.count/1)
+  |> Enum.sort()
+  |> hd()
+```
