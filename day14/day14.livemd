@@ -1,0 +1,145 @@
+# Day 14
+
+## Setup
+
+```elixir
+test_input = """
+498,4 -> 498,6 -> 496,6
+503,4 -> 502,4 -> 502,9 -> 494,9
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Cave do
+  defstruct [:rocks, :sand, :floor]
+
+  def parse(str) do
+    rocks =
+      str
+      |> String.split("\n", trim: true)
+      |> Enum.reduce(MapSet.new(), &parse_line/2)
+
+    %Cave{rocks: rocks, sand: MapSet.new(), floor: find_floor(rocks)}
+  end
+
+  defp find_floor(ms) do
+    ms
+    |> MapSet.to_list()
+    |> Enum.map(fn {_, y} -> y + 2 end)
+    |> Enum.sort()
+    |> Enum.reverse()
+    |> hd()
+  end
+
+  defp parse_line(str, acc) do
+    str
+    |> String.split(" -> ", trim: true)
+    |> Enum.map(&String.split(&1, ",", trim: true))
+    |> Enum.map(fn [x, y] -> {String.to_integer(x), String.to_integer(y)} end)
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.map(&Enum.sort/1)
+    |> Enum.reduce(acc, &add_points/2)
+  end
+
+  defp add_points([{x, y}, {x, y}], acc) do
+    MapSet.put(acc, {x, y})
+  end
+
+  defp add_points([{x, y1}, {x, y2}], acc) when y2 > y1 do
+    add_points([{x, y1}, {x, y2 - 1}], MapSet.put(acc, {x, y2}))
+  end
+
+  defp add_points([{x1, y}, {x2, y}], acc) when x2 > x1 do
+    add_points([{x1, y}, {x2 - 1, y}], MapSet.put(acc, {x2, y}))
+  end
+
+  def add_sand(start, cave) do
+    case drop_sand(start, cave) do
+      {:done, acc} -> acc
+      {:continue, acc} -> add_sand(start, acc)
+    end
+  end
+
+  defp drop_sand({_, y}, cave) when y > 1000, do: {:done, cave}
+
+  defp drop_sand(loc = {x, y}, cave) do
+    new_down = {x, y + 1}
+    new_left = {x - 1, y + 1}
+    new_right = {x + 1, y + 1}
+
+    cond do
+      empty?(new_down, cave) ->
+        drop_sand(new_down, cave)
+
+      empty?(new_left, cave) ->
+        drop_sand(new_left, cave)
+
+      empty?(new_right, cave) ->
+        drop_sand(new_right, cave)
+
+      true ->
+        {:continue, %Cave{cave | sand: MapSet.put(cave.sand, loc)}}
+    end
+  end
+
+  def add_sand_with_floor(start, cave) do
+    if MapSet.member?(cave.sand, start) do
+      cave
+    else
+      case drop_sand_with_floor(start, start, cave) do
+        {:done, acc} -> acc
+        {:continue, acc} -> add_sand_with_floor(start, acc)
+      end
+    end
+  end
+
+  defp drop_sand_with_floor(_start, {_, y}, cave) when y > 1000, do: {:done, cave}
+
+  defp drop_sand_with_floor(start, loc = {x, y}, cave) do
+    new_down = {x, y + 1}
+    new_left = {x - 1, y + 1}
+    new_right = {x + 1, y + 1}
+
+    cond do
+      y + 1 == cave.floor ->
+        {:continue, %Cave{cave | sand: MapSet.put(cave.sand, loc)}}
+
+      empty?(new_down, cave) ->
+        drop_sand_with_floor(start, new_down, cave)
+
+      empty?(new_left, cave) ->
+        drop_sand_with_floor(start, new_left, cave)
+
+      empty?(new_right, cave) ->
+        drop_sand_with_floor(start, new_right, cave)
+
+      true ->
+        {:continue, %Cave{cave | sand: MapSet.put(cave.sand, loc)}}
+    end
+  end
+
+  defp empty?(loc, cave) do
+    !MapSet.member?(cave.rocks, loc) && !MapSet.member?(cave.sand, loc)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+start = {500, 0}
+cave = Cave.parse(input)
+cave = Cave.add_sand(start, cave)
+MapSet.size(cave.sand)
+```
+
+## Part 2
+
+```elixir
+start = {500, 0}
+cave = Cave.parse(input)
+cave = Cave.add_sand_with_floor(start, cave)
+MapSet.size(cave.sand)
+```
