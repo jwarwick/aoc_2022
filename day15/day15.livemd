@@ -1,0 +1,141 @@
+# Day 15
+
+## Setup
+
+```elixir
+test_input = """
+Sensor at x=2, y=18: closest beacon is at x=-2, y=15
+Sensor at x=9, y=16: closest beacon is at x=10, y=16
+Sensor at x=13, y=2: closest beacon is at x=15, y=3
+Sensor at x=12, y=14: closest beacon is at x=10, y=16
+Sensor at x=10, y=20: closest beacon is at x=10, y=16
+Sensor at x=14, y=17: closest beacon is at x=10, y=16
+Sensor at x=8, y=7: closest beacon is at x=2, y=10
+Sensor at x=2, y=0: closest beacon is at x=2, y=10
+Sensor at x=0, y=11: closest beacon is at x=2, y=10
+Sensor at x=20, y=14: closest beacon is at x=25, y=17
+Sensor at x=17, y=20: closest beacon is at x=21, y=22
+Sensor at x=16, y=7: closest beacon is at x=15, y=3
+Sensor at x=14, y=3: closest beacon is at x=15, y=3
+Sensor at x=20, y=1: closest beacon is at x=15, y=3
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Sensors do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&parse_row/1)
+    |> Enum.map(fn x -> {x, distance(x)} end)
+  end
+
+  defp parse_row(str) do
+    words = String.split(str)
+    sx = parse_num(words, 2)
+    sy = parse_num(words, 3)
+    bx = parse_num(words, 8)
+    by = parse_num(words, 9)
+    {{sx, sy}, {bx, by}}
+  end
+
+  defp parse_num(words, idx) do
+    Enum.at(words, idx)
+    |> String.trim(",")
+    |> String.trim(":")
+    |> String.trim_leading("x=")
+    |> String.trim_leading("y=")
+    |> String.to_integer()
+  end
+
+  defp distance({{x1, y1}, {x2, y2}}) do
+    abs(x1 - x2) + abs(y1 - y2)
+  end
+
+  def coverage(sensors, row) do
+    sensors
+    |> Enum.reduce(MapSet.new(), &compute_coverage(&1, row, &2))
+  end
+
+  defp compute_coverage({{s = {x, y}, _}, dist}, row, acc) do
+    if row < y - dist || row > y + dist do
+      acc
+    else
+      points =
+        for cx <- (x - dist)..(x + dist), distance({s, {cx, row}}) <= dist do
+          {cx, row}
+        end
+
+      MapSet.union(acc, MapSet.new(points))
+    end
+  end
+
+  def all_coverage(sensors, min, max) do
+    sensors
+    |> Enum.reduce(MapSet.new(), &compute_coverage_all(&1, &2, min, max))
+  end
+
+  defp compute_coverage_all({{s = {x, y}, _}, dist}, acc, min, max) do
+    minx = clamp(x - dist, min)
+    maxx = clamp(x + dist, max)
+    miny = clamp(y - dist, min)
+    maxy = clamp(y + dist, max)
+
+    points =
+      for cx <- minx..maxx, cy <- miny..maxy, distance({s, {cx, cy}}) <= dist do
+        {cx, cy}
+      end
+
+    MapSet.union(acc, MapSet.new(points))
+  end
+
+  defp clamp(val, min) when val < min, do: 0
+  defp clamp(val, max) when val > max, do: max
+  defp clamp(val, _), do: val
+
+  def row_non_beacon(sensors, coverage, row) do
+    points =
+      coverage
+      |> MapSet.to_list()
+      |> Enum.filter(fn {_, y} -> y == row end)
+      |> Enum.into(MapSet.new())
+
+    beacons = Enum.into(sensors, MapSet.new(), fn {{_, b}, _} -> b end)
+    MapSet.difference(points, beacons)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+# row = 2000000
+row = 10
+
+sensors =
+  test_input
+  |> Sensors.parse()
+
+points = Sensors.coverage(sensors, row)
+
+Sensors.row_non_beacon(sensors, points, row)
+|> Enum.count()
+```
+
+## Part 2
+
+```elixir
+# row = 2000000
+row = 10
+
+sensors =
+  test_input
+  |> Sensors.parse()
+
+points = Sensors.all_coverage(sensors, 0, 20)
+
+# Sensors.row_non_beacon(sensors, points, row) 
+# |> Enum.count()
+```
