@@ -72,19 +72,19 @@ defmodule Sensors do
     end
   end
 
-  def all_coverage(sensors, min, max) do
+  def not_all_coverage(sensors, min, max) do
     sensors
-    |> Enum.reduce(MapSet.new(), &compute_coverage_all(&1, &2, min, max))
+    |> Enum.reduce(MapSet.new(), &compute_not_coverage_all(&1, &2, min, max))
   end
 
-  defp compute_coverage_all({{s = {x, y}, _}, dist}, acc, min, max) do
+  defp compute_not_coverage_all({{s = {x, y}, _}, dist}, acc, min, max) do
     minx = clamp(x - dist, min)
     maxx = clamp(x + dist, max)
     miny = clamp(y - dist, min)
     maxy = clamp(y + dist, max)
 
     points =
-      for cx <- minx..maxx, cy <- miny..maxy, distance({s, {cx, cy}}) <= dist do
+      for cx <- minx..maxx, cy <- miny..maxy, distance({s, {cx, cy}}) > dist do
         {cx, cy}
       end
 
@@ -127,14 +127,16 @@ Sensors.row_non_beacon(sensors, points, row)
 ## Part 2
 
 ```elixir
-# row = 2000000
-row = 10
+# {min, max} = {0, 20}
+{min, max} = {0, 4_000_000}
 
 sensors =
-  test_input
+  input
   |> Sensors.parse()
 
-points = Sensors.all_coverage(sensors, 0, 20)
+points =
+  Sensors.not_all_coverage(sensors, min, max)
+  |> Enum.count()
 
 # Sensors.row_non_beacon(sensors, points, row) 
 # |> Enum.count()

@@ -1,0 +1,149 @@
+# Day 16
+
+## Setup
+
+```elixir
+test_input = """
+Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
+Valve BB has flow rate=13; tunnels lead to valves CC, AA
+Valve CC has flow rate=2; tunnels lead to valves DD, BB
+Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
+Valve EE has flow rate=3; tunnels lead to valves FF, DD
+Valve FF has flow rate=0; tunnels lead to valves EE, GG
+Valve GG has flow rate=0; tunnels lead to valves FF, HH
+Valve HH has flow rate=22; tunnel leads to valve GG
+Valve II has flow rate=0; tunnels lead to valves AA, JJ
+Valve JJ has flow rate=21; tunnel leads to valve II
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Valves do
+  defstruct [:valves, :paths]
+
+  defmodule Valve do
+    defstruct [:name, :rate, :neighbors]
+  end
+
+  def parse(str) do
+    valves =
+      str
+      |> String.split("\n", trim: true)
+      |> Enum.map(&parse_valve/1)
+      |> Enum.into(%{}, fn v = %Valve{name: n} -> {n, v} end)
+
+    all = Map.keys(valves)
+    paths = Enum.reduce(all, %{}, &add_paths(&1, all, valves, &2))
+    %Valves{valves: valves, paths: paths}
+  end
+
+  defp parse_valve(str) do
+    words = String.split(str)
+    valve = Enum.at(words, 1)
+
+    rate =
+      Enum.at(words, 4)
+      |> String.trim_leading("rate=")
+      |> String.trim(";")
+      |> String.to_integer()
+
+    neighbors =
+      Enum.drop(words, 9)
+      |> Enum.map(&String.trim(&1, ","))
+
+    %Valve{name: valve, rate: rate, neighbors: neighbors}
+  end
+
+  defp add_paths(_, [], _, acc), do: acc
+
+  defp add_paths(a, [b | rest], valves, acc) do
+    add_paths(
+      a,
+      rest,
+      valves,
+      Map.put(acc, {a, b}, add_path([{a, []}], b, valves, MapSet.new([a])))
+    )
+  end
+
+  defp add_path([], _, _, _), do: nil
+  defp add_path([{a, p} | _rest], a, _, _), do: {Enum.reverse(p), length(p)}
+
+  defp add_path([{curr, path} | rest], target, valves, visited) do
+    curr_valve = Map.get(valves, curr)
+
+    neighbors =
+      curr_valve.neighbors
+      |> Enum.reject(&MapSet.member?(visited, &1))
+      |> Enum.map(&{&1, [&1 | path]})
+
+    add_path(rest ++ neighbors, target, valves, MapSet.put(visited, curr))
+  end
+
+  def permutations([]), do: [[]]
+
+  def permutations(list) do
+    for elem <- list, rest <- permutations(list -- [elem]) do
+      [elem | rest]
+    end
+  end
+
+  def plan(v = %Valves{valves: valves}, time) do
+    keys =
+      Map.keys(valves)
+      |> Enum.reject(fn k -> Map.get(valves, k).rate == 0 end)
+
+    perms = permutations(keys)
+    IO.inspect(perms)
+
+    do_plan("AA", keys, time, [], v)
+  end
+
+  defp do_plan(_, _, time, acc, _) when time <= 0, do: Enum.reverse(acc)
+  defp do_plan(_, [], _, acc, _), do: Enum.reverse(acc)
+
+  defp do_plan(loc, left, time, acc, v = %Valves{}) do
+    {value, dest, time_left} =
+      Enum.map(left, &npv(loc, &1, time, v))
+      |> Enum.sort()
+      |> Enum.reverse()
+      |> IO.inspect()
+      |> hd()
+
+    available = List.delete(left, dest)
+    do_plan(dest, available, time_left, [{value, dest, time_left} | acc], v)
+  end
+
+  def npv(curr, dest, time_remaining, %Valves{valves: valves, paths: paths}) do
+    {_, dist} = Map.get(paths, {curr, dest})
+    run_time = time_remaining - (dist + 1)
+    rate = Map.get(valves, dest).rate
+    value = run_time * rate
+    value = if value < 0, do: 0, else: value
+    {value, dest, run_time}
+  end
+end
+
+test_input
+|> Valves.parse()
+```
+
+## Part 1
+
+```elixir
+v =
+  input
+  |> Valves.parse()
+
+Valves.plan(v, 30)
+|> IO.inspect()
+|> Enum.map(fn {v, _, _} -> v end)
+|> Enum.sum()
+```
+
+## Part 2
+
+```elixir
+
+```
