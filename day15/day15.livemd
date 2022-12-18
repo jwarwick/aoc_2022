@@ -72,29 +72,6 @@ defmodule Sensors do
     end
   end
 
-  def not_all_coverage(sensors, min, max) do
-    sensors
-    |> Enum.reduce(MapSet.new(), &compute_not_coverage_all(&1, &2, min, max))
-  end
-
-  defp compute_not_coverage_all({{s = {x, y}, _}, dist}, acc, min, max) do
-    minx = clamp(x - dist, min)
-    maxx = clamp(x + dist, max)
-    miny = clamp(y - dist, min)
-    maxy = clamp(y + dist, max)
-
-    points =
-      for cx <- minx..maxx, cy <- miny..maxy, distance({s, {cx, cy}}) > dist do
-        {cx, cy}
-      end
-
-    MapSet.union(acc, MapSet.new(points))
-  end
-
-  defp clamp(val, min) when val < min, do: 0
-  defp clamp(val, max) when val > max, do: max
-  defp clamp(val, _), do: val
-
   def row_non_beacon(sensors, coverage, row) do
     points =
       coverage
@@ -104,6 +81,46 @@ defmodule Sensors do
 
     beacons = Enum.into(sensors, MapSet.new(), fn {{_, b}, _} -> b end)
     MapSet.difference(points, beacons)
+  end
+
+  def boundary({{{x, y}, _}, dist}) do
+    a = diagonal({x, y - (dist + 1)}, {x + (dist + 1), y}, fn {x, y} -> {x + 1, y + 1} end)
+    b = diagonal({x + (dist + 1), y}, {x, y + (dist + 1)}, fn {x, y} -> {x - 1, y + 1} end)
+    c = diagonal({x, y + (dist + 1)}, {x - (dist + 1), y}, fn {x, y} -> {x - 1, y - 1} end)
+    d = diagonal({x - (dist + 1), y}, {x, y - (dist + 1)}, fn {x, y} -> {x + 1, y - 1} end)
+    a ++ b ++ c ++ d
+  end
+
+  defp diagonal(from, to, f, acc \\ [])
+  defp diagonal(a, a, _, acc), do: acc
+
+  defp diagonal(from, to, f, acc) do
+    diagonal(f.(from), to, f, [from | acc])
+  end
+
+  defp point_covered({x, y}, _, min, max) when x < min or y < min or x > max or y > max, do: true
+  defp point_covered(_p, [], _, _), do: false
+
+  defp point_covered(p, [{{s, _}, dist} | rest], min, max) do
+    if distance({s, p}) <= dist do
+      true
+    else
+      point_covered(p, rest, min, max)
+    end
+  end
+
+  def check_boundaries([], _, _, _), do: nil
+
+  def check_boundaries([a | rest], all, min, max) do
+    b =
+      boundary(a)
+      |> Enum.reject(&point_covered(&1, all, min, max))
+
+    if Enum.count(b) != 0 do
+      b
+    else
+      check_boundaries(rest, all, min, max)
+    end
   end
 end
 ```
@@ -134,10 +151,6 @@ sensors =
   input
   |> Sensors.parse()
 
-points =
-  Sensors.not_all_coverage(sensors, min, max)
-  |> Enum.count()
-
-# Sensors.row_non_beacon(sensors, points, row) 
-# |> Enum.count()
+[{x, y}] = Sensors.check_boundaries(sensors, sensors, min, max)
+4_000_000 * x + y
 ```
