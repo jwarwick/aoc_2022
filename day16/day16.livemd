@@ -81,38 +81,51 @@ defmodule Valves do
     add_path(rest ++ neighbors, target, valves, MapSet.put(visited, curr))
   end
 
-  def permutations([]), do: [[]]
-
-  def permutations(list) do
-    for elem <- list, rest <- permutations(list -- [elem]) do
-      [elem | rest]
-    end
-  end
-
   def plan(v = %Valves{valves: valves}, time) do
     keys =
       Map.keys(valves)
       |> Enum.reject(fn k -> Map.get(valves, k).rate == 0 end)
 
-    perms = permutations(keys)
-    IO.inspect(perms)
-
-    do_plan("AA", keys, time, [], v)
+    do_plan([{"AA", keys, time, []}], v, 0)
   end
 
-  defp do_plan(_, _, time, acc, _) when time <= 0, do: Enum.reverse(acc)
-  defp do_plan(_, [], _, acc, _), do: Enum.reverse(acc)
+  defp do_plan([], _, best), do: best
 
-  defp do_plan(loc, left, time, acc, v = %Valves{}) do
-    {value, dest, time_left} =
+  defp do_plan([{_loc, [], _time, acc} | rest], v, best) do
+    handle_end(acc, rest, v, best)
+  end
+
+  defp do_plan([{_loc, _left, time, acc} | rest], v, best) when time <= 0 do
+    handle_end(acc, rest, v, best)
+  end
+
+  defp do_plan([{loc, left, time, acc} | rest], v = %Valves{}, best) do
+    next =
       Enum.map(left, &npv(loc, &1, time, v))
-      |> Enum.sort()
-      |> Enum.reverse()
-      |> IO.inspect()
-      |> hd()
+      |> Enum.map(&npv_to_node(&1, left, acc))
 
-    available = List.delete(left, dest)
-    do_plan(dest, available, time_left, [{value, dest, time_left} | acc], v)
+    do_plan(next ++ rest, v, best)
+  end
+
+  defp handle_end(acc, rest, v, best) do
+    total = sum_values(acc)
+    new_best = if total > best, do: total, else: best
+    do_plan(rest, v, new_best)
+  end
+
+  defp npv_to_node(npv = {_value, dest, run_time}, left, acc) do
+    {
+      dest,
+      List.delete(left, dest),
+      run_time,
+      [npv | acc]
+    }
+  end
+
+  defp sum_values(acc) do
+    acc
+    |> Enum.map(fn {value, _, _} -> value end)
+    |> Enum.sum()
   end
 
   def npv(curr, dest, time_remaining, %Valves{valves: valves, paths: paths}) do
@@ -123,27 +136,69 @@ defmodule Valves do
     value = if value < 0, do: 0, else: value
     {value, dest, run_time}
   end
-end
 
-test_input
-|> Valves.parse()
+  def plan2(v = %Valves{valves: valves}, time) do
+    keys =
+      Map.keys(valves)
+      |> Enum.reject(fn k -> Map.get(valves, k).rate == 0 end)
+
+    do_plan2([{{"AA", time}, {"AA", time}, keys, []}], v, 0)
+  end
+
+  defp do_plan2([], _, best), do: best
+
+  defp do_plan2([{_a, _b, [], acc} | rest], v, best) do
+    handle_end2(acc, rest, v, best)
+  end
+
+  defp do_plan2([{{_a, time1}, {_b, time2}, _left, acc} | rest], v, best)
+       when time1 <= 0 and time2 <= 0 do
+    handle_end2(acc, rest, v, best)
+  end
+
+  defp do_plan2([{{l1, t1}, {l2, t2}, left, acc} | rest], v = %Valves{}, best) do
+    next1 = Enum.map(left, &npv(l1, &1, t1, v))
+    next2 = Enum.map(left, &npv(l2, &1, t2, v))
+
+    combined =
+      for n1 = {_, d1, _} <- next1, n2 = {_, d2, _} <- next2, d1 != d2 do
+        npv_to_node2(n1, n2, left, acc)
+      end
+
+    do_plan2(combined ++ rest, v, best)
+  end
+
+  defp npv_to_node2(n1 = {_v1, d1, t1}, n2 = {_v2, d2, t2}, left, acc) do
+    {
+      {d1, t1},
+      {d2, t2},
+      List.delete(List.delete(left, d1), d2),
+      [n1, n2] ++ acc
+    }
+  end
+
+  defp handle_end2(acc, rest, v, best) do
+    total = sum_values(acc)
+    new_best = if total > best, do: total, else: best
+    do_plan2(rest, v, new_best)
+  end
+end
 ```
 
 ## Part 1
 
 ```elixir
-v =
-  input
-  |> Valves.parse()
-
-Valves.plan(v, 30)
-|> IO.inspect()
-|> Enum.map(fn {v, _, _} -> v end)
-|> Enum.sum()
+input
+|> Valves.parse()
+|> Valves.plan(30)
 ```
 
 ## Part 2
 
 ```elixir
-
+test_input
+|> Valves.parse()
+|> Valves.plan2(26)
 ```
+
+Guessed 2652 after letting it run overnight. That answer was too low.

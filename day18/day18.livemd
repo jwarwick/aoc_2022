@@ -1,0 +1,108 @@
+# Day 18
+
+## Setup
+
+```elixir
+test_input = """
+2,2,2
+1,2,2
+3,2,2
+2,1,2
+2,3,2
+2,2,1
+2,2,3
+2,2,4
+2,2,6
+1,2,5
+3,2,5
+2,1,5
+2,3,5
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Boulders do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.split(&1, ",", trim: true))
+    |> Enum.map(fn [x, y, z] ->
+      {String.to_integer(x), String.to_integer(y), String.to_integer(z)}
+    end)
+    |> MapSet.new()
+  end
+
+  def surface_area(m) do
+    m
+    |> MapSet.to_list()
+    |> Enum.map(&(6 - count_sides(&1, m)))
+    |> Enum.sum()
+  end
+
+  defp count_sides(p, m) do
+    p
+    |> neighbors()
+    |> Enum.filter(&MapSet.member?(m, &1))
+    |> Enum.count()
+  end
+
+  defp neighbors({x, y, z}) do
+    [{x + 1, y, z}, {x - 1, y, z}, {x, y + 1, z}, {x, y - 1, z}, {x, y, z + 1}, {x, y, z - 1}]
+  end
+
+  def exterior_surface_area(m) do
+    nodes = MapSet.to_list(m)
+    all_neighbors = Enum.flat_map(nodes, &neighbors/1) |> MapSet.new() |> MapSet.to_list()
+    inside_nodes = Enum.reduce(all_neighbors, MapSet.new(), &check_neighbors(&1, &2, m))
+    IO.inspect(inside_nodes)
+    inside_nodes = MapSet.union(inside_nodes, m)
+
+    Enum.map(nodes, &(6 - count_sides(&1, inside_nodes)))
+    |> Enum.sum()
+  end
+
+  def check_neighbors(node, acc, m) do
+    if MapSet.member?(m, node) do
+      acc
+    else
+      if flood_contains(1000, [node], acc, m) do
+        MapSet.put(acc, node)
+      else
+        acc
+      end
+    end
+  end
+
+  defp flood_contains(0, _n, _acc, _m), do: false
+  defp flood_contains(_cnt, [], _acc, _m), do: true
+
+  defp flood_contains(cnt, [n | rest], acc, m) do
+    if MapSet.member?(acc, n) do
+      true
+    else
+      neigh = neighbors(n) |> Enum.reject(&MapSet.member?(m, &1))
+      flood_contains(cnt - 1, rest ++ neigh, acc, m)
+    end
+  end
+end
+```
+
+## Part 1
+
+```elixir
+input
+|> Boulders.parse()
+|> Boulders.surface_area()
+```
+
+## Part 2
+
+```elixir
+input
+|> Boulders.parse()
+|> Boulders.exterior_surface_area()
+```
+
+Guessed 3464, that's too high

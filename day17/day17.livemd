@@ -1,0 +1,148 @@
+# Day 17
+
+## Setup
+
+```elixir
+test_input = """
+>>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Tunnel do
+  defstruct [:rocks, :shapes, :wind]
+
+  def parse(str) do
+    wind =
+      str
+      |> String.trim()
+      |> String.to_charlist()
+
+    rocks = MapSet.new([{1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}, {6, 0}, {7, 0}])
+    shapes = Stream.cycle([:a, :b, :c, :d, :e]) |> Enum.take(3000)
+    wind = Stream.cycle(wind) |> Enum.take(100_000)
+
+    %Tunnel{rocks: rocks, shapes: shapes, wind: wind}
+  end
+
+  def shape(:a, x) do
+    [{3, x}, {4, x}, {5, x}, {6, x}]
+  end
+
+  def shape(:b, x) do
+    [{4, x}, {3, x + 1}, {4, x + 1}, {5, x + 1}, {4, x + 2}]
+  end
+
+  def shape(:c, x) do
+    [{3, x}, {4, x}, {5, x}, {5, x + 1}, {5, x + 2}]
+  end
+
+  def shape(:d, x) do
+    [{3, x}, {3, x + 1}, {3, x + 2}, {3, x + 3}]
+  end
+
+  def shape(:e, x) do
+    [{3, x}, {4, x}, {3, x + 1}, {4, x + 1}]
+  end
+
+  def wind(?<), do: fn {x, y} -> {x - 1, y} end
+  def wind(?>), do: fn {x, y} -> {x + 1, y} end
+
+  def down({x, y}), do: {x, y - 1}
+
+  def shape_hits_wall?(s) do
+    Enum.any?(s, &hits_wall?/1)
+  end
+
+  def hits_wall?({x, _y}) do
+    x < 1 || x > 7
+  end
+
+  def shape_hits_rock?(s, rocks) do
+    Enum.any?(s, &hits_rock?(&1, rocks))
+  end
+
+  def hits_rock?(s, rocks) do
+    MapSet.member?(rocks, s)
+  end
+
+  def highest_point(rocks) do
+    {_, y} =
+      MapSet.to_list(rocks)
+      |> Enum.sort(fn {_, y1}, {_, y2} -> y1 > y2 end)
+      |> hd()
+
+    y
+  end
+
+  def drop(tunnel = %Tunnel{}, 0) do
+    highest_point(tunnel.rocks)
+  end
+
+  def drop(tunnel = %Tunnel{rocks: rocks, wind: wind, shapes: [sd | shapes]}, n) do
+    floor = highest_point(rocks)
+    # IO.inspect({:highest_point, floor})
+    s = shape(sd, floor + 4)
+    # IO.inspect({:starting, n, s})
+    {result, wind} = drop_rock(s, wind, rocks)
+    rocks = Enum.reduce(result, rocks, &MapSet.put(&2, &1))
+    # IO.inspect({:done_dropping, rocks})
+    # print(rocks)
+    drop(%Tunnel{tunnel | rocks: rocks, shapes: shapes, wind: wind}, n - 1)
+  end
+
+  def drop_rock(s, [w | rest], rocks) do
+    # IO.inspect({:drop_rock, s, <<w>>})
+    w_fn = wind(w)
+    new_s = Enum.map(s, &w_fn.(&1))
+    # IO.inspect({:wind_shape, new_s})
+    # IO.inspect({:hits_wall?, shape_hits_wall?(new_s)})
+    # IO.inspect({:hits_rock?, shape_hits_rock?(new_s, rocks)})
+    new_s = if shape_hits_wall?(new_s) || shape_hits_rock?(new_s, rocks), do: s, else: new_s
+    # IO.inspect({:post_wind_shape, new_s})
+    drop_s = Enum.map(new_s, &down/1)
+    # IO.inspect({:drop_shape, drop_s})
+    # IO.inspect({:drop_hits_rock?, shape_hits_rock?(drop_s, rocks)})
+    if shape_hits_rock?(drop_s, rocks) do
+      # print(MapSet.union(rocks, MapSet.new(new_s)))
+      {new_s, rest}
+    else
+      # print(MapSet.union(rocks, MapSet.new(drop_s)))
+      drop_rock(drop_s, rest, rocks)
+    end
+  end
+
+  def print(rocks) do
+    top = highest_point(rocks)
+
+    for y <- top..1 do
+      for x <- 1..7 do
+        str = if MapSet.member?(rocks, {x, y}), do: "#", else: "."
+        IO.write(str)
+      end
+
+      IO.puts("")
+    end
+
+    IO.puts("\n\n")
+  end
+end
+```
+
+## Part 1
+
+```elixir
+input
+|> Tunnel.parse()
+|> Tunnel.drop(2022)
+```
+
+Guessed 3208, answer is too low. Turned out copying and pasting the input only caught the first 4096 characters, but not the entire input...
+
+## Part 2
+
+```elixir
+
+```
