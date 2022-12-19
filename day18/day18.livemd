@@ -37,14 +37,14 @@ defmodule Boulders do
   def surface_area(m) do
     m
     |> MapSet.to_list()
-    |> Enum.map(&(6 - count_sides(&1, m)))
+    |> Enum.map(&count_uncovered_sides(&1, m))
     |> Enum.sum()
   end
 
-  defp count_sides(p, m) do
+  defp count_uncovered_sides(p, m) do
     p
     |> neighbors()
-    |> Enum.filter(&MapSet.member?(m, &1))
+    |> Enum.reject(&MapSet.member?(m, &1))
     |> Enum.count()
   end
 
@@ -52,38 +52,94 @@ defmodule Boulders do
     [{x + 1, y, z}, {x - 1, y, z}, {x, y + 1, z}, {x, y - 1, z}, {x, y, z + 1}, {x, y, z - 1}]
   end
 
+  def count_water_faces(m) do
+    nodes = MapSet.to_list(m)
+    {minx, maxx} = Enum.map(nodes, fn {x, _, _} -> x end) |> Enum.min_max()
+    {miny, maxy} = Enum.map(nodes, fn {_, y, _} -> y end) |> Enum.min_max()
+    {minz, maxz} = Enum.map(nodes, fn {_, _, z} -> z end) |> Enum.min_max()
+    bounds = {{minx - 2, maxx + 2}, {miny - 2, maxy + 2}, {minz - 2, maxz + 2}}
+
+    start = {minx - 2, miny - 2, minz - 2}
+    water = flood_water([start], MapSet.new([]), MapSet.new([start]), m, bounds)
+
+    Enum.map(nodes, &count_water_sides(&1, water))
+    |> Enum.sum()
+  end
+
+  defp count_water_sides(p, water) do
+    p
+    |> neighbors()
+    |> Enum.filter(&MapSet.member?(water, &1))
+    |> Enum.count()
+  end
+
+  def point_in_bounds({x, y, z}, {{minx, maxx}, {miny, maxy}, {minz, maxz}}) do
+    x >= minx && x <= maxx && y >= miny && y <= maxy && z >= minz && z <= maxz
+  end
+
+  def flood_water([], acc, _, _, _), do: acc
+
+  def flood_water([curr | rest], water, seen, m, bounds) do
+    neighs =
+      neighbors(curr)
+      |> Enum.reject(&MapSet.member?(m, &1))
+      |> Enum.reject(&MapSet.member?(seen, &1))
+      |> Enum.filter(&point_in_bounds(&1, bounds))
+
+    flood_water(
+      rest ++ neighs,
+      MapSet.put(water, curr),
+      MapSet.union(seen, MapSet.new(neighs)),
+      m,
+      bounds
+    )
+  end
+
   def exterior_surface_area(m) do
     nodes = MapSet.to_list(m)
-    all_neighbors = Enum.flat_map(nodes, &neighbors/1) |> MapSet.new() |> MapSet.to_list()
+    # IO.inspect({:node_count, Enum.count(nodes)})
+    all_neighbors = Enum.flat_map(nodes, &neighbors/1)
+    # IO.inspect({:all_count, Enum.count(all_neighbors)})
+    all_neighbors
+    |> Enum.reject(&MapSet.member?(m, &1))
+    |> Enum.uniq()
+
     inside_nodes = Enum.reduce(all_neighbors, MapSet.new(), &check_neighbors(&1, &2, m))
     IO.inspect(inside_nodes)
     inside_nodes = MapSet.union(inside_nodes, m)
 
-    Enum.map(nodes, &(6 - count_sides(&1, inside_nodes)))
-    |> Enum.sum()
+    surface_area(inside_nodes)
   end
 
   def check_neighbors(node, acc, m) do
-    if MapSet.member?(m, node) do
-      acc
+    {contained?, visited} = flood_contains(500, [node], acc, MapSet.new(), m)
+
+    if contained? do
+      MapSet.union(visited, acc)
     else
-      if flood_contains(1000, [node], acc, m) do
-        MapSet.put(acc, node)
-      else
-        acc
-      end
+      acc
     end
   end
 
-  defp flood_contains(0, _n, _acc, _m), do: false
-  defp flood_contains(_cnt, [], _acc, _m), do: true
+  defp flood_contains(0, _n, _acc, visited, _m), do: {false, visited}
+  defp flood_contains(_cnt, [], _acc, visited, _m), do: {true, visited}
 
-  defp flood_contains(cnt, [n | rest], acc, m) do
-    if MapSet.member?(acc, n) do
-      true
+  defp flood_contains(cnt, [n | rest], acc, visited, m) do
+    if MapSet.member?(m, n) do
+      visited = MapSet.put(visited, n)
+      flood_contains(cnt, rest, acc, visited, m)
     else
-      neigh = neighbors(n) |> Enum.reject(&MapSet.member?(m, &1))
-      flood_contains(cnt - 1, rest ++ neigh, acc, m)
+      # if MapSet.member?(acc, n) do
+      #  {true, visited}
+      # else
+      visited = MapSet.put(visited, n)
+
+      neigh =
+        neighbors(n)
+        # |> Enum.reject(&(MapSet.member?(m, &1))) 
+        |> Enum.reject(&MapSet.member?(visited, &1))
+
+      flood_contains(cnt - 1, neigh ++ rest, acc, visited, m)
     end
   end
 end
@@ -100,9 +156,21 @@ input
 ## Part 2
 
 ```elixir
-input
-|> Boulders.parse()
-|> Boulders.exterior_surface_area()
+# input
+# |> Boulders.parse()
+# |> Boulders.exterior_surface_area()
 ```
 
 Guessed 3464, that's too high
+
+Guessed 3430, that's too high
+
+<!-- livebook:{"break_markdown":true} -->
+
+Don't know what's wrong with that code. Let's try finding all the exterior water instead.
+
+```elixir
+input
+|> Boulders.parse()
+|> Boulders.count_water_faces()
+```
