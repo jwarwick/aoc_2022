@@ -1,0 +1,166 @@
+# Day 19
+
+## Setup
+
+```elixir
+test_input = """
+Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.
+Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian.
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Blueprint do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.map(&parse_line/1)
+  end
+
+  defp parse_line({str, idx}) do
+    parts = String.split(str, ".", trim: true) |> Enum.map(&String.split/1)
+    ore = Enum.at(parts, 0) |> Enum.at(6) |> String.to_integer()
+    clay = Enum.at(parts, 1) |> Enum.at(4) |> String.to_integer()
+    ob_ore = Enum.at(parts, 2) |> Enum.at(4) |> String.to_integer()
+    ob_clay = Enum.at(parts, 2) |> Enum.at(7) |> String.to_integer()
+    geo_ore = Enum.at(parts, 3) |> Enum.at(4) |> String.to_integer()
+    geo_ob = Enum.at(parts, 3) |> Enum.at(7) |> String.to_integer()
+    {idx + 1, {{ore, 0, 0}, {clay, 0, 0}, {ob_ore, ob_clay, 0}, {geo_ore, 0, geo_ob}}}
+  end
+
+  defmodule State do
+    defstruct [
+      :ore_cost,
+      :clay_cost,
+      :obs_cost,
+      :geode_cost,
+      ore_count: 0,
+      clay_count: 0,
+      obs_count: 0,
+      geode_count: 0,
+      ore_bots: 1,
+      clay_bots: 0,
+      obs_bots: 0,
+      geode_bots: 0
+    ]
+  end
+
+  def run(steps, _blueprint = {idx, {ore_cost, clay_cost, obs_cost, geode_cost}}) do
+    max_costs =
+      Enum.reduce([ore_cost, clay_cost, obs_cost, geode_cost], {0, 0, 0}, fn {x, y, z},
+                                                                             {maxx, maxy, maxz} ->
+        {max(x, maxx), max(y, maxy), max(z, maxz)}
+      end)
+
+    {idx,
+     do_run(
+       [
+         {steps,
+          %State{
+            ore_cost: ore_cost,
+            clay_cost: clay_cost,
+            obs_cost: obs_cost,
+            geode_cost: geode_cost
+          }}
+       ],
+       max_costs,
+       0
+     )}
+    |> IO.inspect()
+  end
+
+  defp do_run([], _, best), do: best
+
+  defp do_run([{0, %State{geode_count: count}} | rest], max_costs, best) do
+    best = if count > best, do: count, else: best
+    do_run(rest, max_costs, best)
+  end
+
+  defp do_run([{n, s = %State{}} | rest], max_costs, best) do
+    most_geodes = s.geode_count + s.geode_bots * n + n * (n + 1) / 2
+
+    if most_geodes < best do
+      do_run(rest, max_costs, best)
+    else
+      options =
+        [:geode_cost, :ore_cost, :clay_cost, :obs_cost, :nothing]
+        |> Enum.reject(&have_enough(&1, s, max_costs))
+        |> Enum.filter(&can_afford?(&1, s))
+        |> Enum.map(&update_for_action(s, &1))
+        |> Enum.map(fn x -> {n - 1, x} end)
+
+      do_run(options ++ rest, max_costs, best)
+    end
+  end
+
+  def have_enough(:nothing, _, _), do: false
+  def have_enough(:geode_cost, _, _), do: false
+  def have_enough(:ore_cost, s, {max_ore, _, _}), do: s.ore_bots >= max_ore
+  def have_enough(:clay_cost, s, {_, max_clay, _}), do: s.clay_bots >= max_clay
+  def have_enough(:obs_cost, s, {_, _, max_obs}), do: s.obs_bots >= max_obs
+
+  def update_for_action(s = %State{}, action) do
+    {ore, clay, obs} = Map.get(s, action, {0, 0, 0})
+
+    s = %State{
+      s
+      | ore_count: s.ore_count - ore,
+        clay_count: s.clay_count - clay,
+        obs_count: s.obs_count - obs
+    }
+
+    s = add_new_resources(s)
+    update_robot_count(s, action)
+  end
+
+  def add_new_resources(s = %State{}) do
+    %State{
+      s
+      | ore_count: s.ore_count + s.ore_bots,
+        clay_count: s.clay_count + s.clay_bots,
+        obs_count: s.obs_count + s.obs_bots,
+        geode_count: s.geode_count + s.geode_bots
+    }
+  end
+
+  def update_robot_count(s, :nothing), do: s
+  def update_robot_count(s = %State{}, :ore_cost), do: %State{s | ore_bots: s.ore_bots + 1}
+  def update_robot_count(s = %State{}, :clay_cost), do: %State{s | clay_bots: s.clay_bots + 1}
+  def update_robot_count(s = %State{}, :obs_cost), do: %State{s | obs_bots: s.obs_bots + 1}
+  def update_robot_count(s = %State{}, :geode_cost), do: %State{s | geode_bots: s.geode_bots + 1}
+
+  def can_afford?(:nothing, _), do: true
+
+  def can_afford?(
+        key,
+        s = %State{ore_count: ore_count, clay_count: clay_count, obs_count: obs_count}
+      ) do
+    {ore_cost, clay_cost, obs_cost} = Map.get(s, key)
+    ore_cost <= ore_count && clay_cost <= clay_count && obs_cost <= obs_count
+  end
+end
+```
+
+## Part 1
+
+```elixir
+test_input
+|> Blueprint.parse()
+|> Enum.map(&Blueprint.run(24, &1))
+|> Enum.map(fn {x, y} -> x * y end)
+|> Enum.sum()
+```
+
+## Part 2
+
+```elixir
+input
+|> Blueprint.parse()
+|> Enum.take(3)
+|> Enum.map(&Blueprint.run(32, &1))
+|> Enum.map(fn {_, y} -> y end)
+|> Enum.reduce(&(&1 * &2))
+```
