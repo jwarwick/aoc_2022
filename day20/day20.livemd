@@ -1,0 +1,88 @@
+# Day 20
+
+## Setup
+
+```elixir
+test_input = """
+1
+2
+-3
+3
+-2
+0
+4
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Coords do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.to_integer/1)
+    |> Enum.with_index()
+  end
+
+  def decrypt(str) do
+    l = length(str)
+
+    do_decrypt(str, str, l)
+    |> compute_result(l)
+  end
+
+  def decrypt2(str, rounds) do
+    l = length(str)
+    input = Enum.map(str, fn {val, idx} -> {val * 811_589_153, idx} end)
+
+    Enum.reduce(1..rounds, input, fn _idx, acc -> do_decrypt(input, acc, l) end)
+    |> compute_result(l)
+  end
+
+  defp compute_result(lst, l) do
+    zero_idx = Enum.find_index(lst, fn {x, _} -> x == 0 end)
+    a = Enum.at(lst, Integer.mod(zero_idx + 1000, l))
+    b = Enum.at(lst, Integer.mod(zero_idx + 2000, l))
+    c = Enum.at(lst, Integer.mod(zero_idx + 3000, l))
+
+    [a, b, c]
+    |> Enum.map(fn {x, _} -> x end)
+    |> Enum.sum()
+  end
+
+  defp do_decrypt([], curr, _), do: curr
+  defp do_decrypt([{0, _} | rest], curr, l), do: do_decrypt(rest, curr, l)
+
+  defp do_decrypt([first = {first_val, _} | rest], curr, l) do
+    curr_idx = Enum.find_index(curr, &(&1 == first))
+    new_idx = Integer.mod(first_val + curr_idx, l - 1)
+
+    curr =
+      List.delete_at(curr, curr_idx)
+      |> List.insert_at(new_idx, first)
+
+    do_decrypt(rest, curr, l)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+input
+|> Coords.parse()
+|> Coords.decrypt()
+```
+
+Guessed 4552, your answer is too low
+
+Guessed 14306, your answer is too low
+
+## Part 2
+
+```elixir
+input
+|> Coords.parse()
+|> Coords.decrypt2(10)
+```
