@@ -12,19 +12,22 @@ input = File.read!("./input.txt")
 
 ```elixir
 defmodule Tunnel do
-  defstruct [:rocks, :shapes, :wind]
+  defstruct [:rocks, :shapes, :wind, :num_shapes, :num_wind]
 
   def parse(str) do
     wind =
       str
       |> String.trim()
       |> String.to_charlist()
+      |> Enum.with_index()
 
+    num_wind = length(wind)
+    IO.inspect({:wind_length, num_wind})
     rocks = MapSet.new([{1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}, {6, 0}, {7, 0}])
-    shapes = Stream.cycle([:a, :b, :c, :d, :e]) |> Enum.take(3000)
+    shapes = Stream.cycle([:a, :b, :c, :d, :e]) |> Enum.take(100_000)
     wind = Stream.cycle(wind) |> Enum.take(100_000)
 
-    %Tunnel{rocks: rocks, shapes: shapes, wind: wind}
+    %Tunnel{rocks: rocks, shapes: shapes, wind: wind, num_shapes: 5, num_wind: num_wind}
   end
 
   def shape(:a, x) do
@@ -77,40 +80,71 @@ defmodule Tunnel do
     y
   end
 
+  def highest_point_in_col(rocks, col) do
+    {_, y} =
+      MapSet.to_list(rocks)
+      |> Enum.filter(fn {x, _} -> x == col end)
+      |> Enum.sort(fn {_, y1}, {_, y2} -> y1 > y2 end)
+      |> hd()
+
+    y
+  end
+
   def drop(tunnel = %Tunnel{}, 0) do
     highest_point(tunnel.rocks)
   end
 
   def drop(tunnel = %Tunnel{rocks: rocks, wind: wind, shapes: [sd | shapes]}, n) do
     floor = highest_point(rocks)
-    # IO.inspect({:highest_point, floor})
     s = shape(sd, floor + 4)
-    # IO.inspect({:starting, n, s})
     {result, wind} = drop_rock(s, wind, rocks)
     rocks = Enum.reduce(result, rocks, &MapSet.put(&2, &1))
-    # IO.inspect({:done_dropping, rocks})
-    # print(rocks)
     drop(%Tunnel{tunnel | rocks: rocks, shapes: shapes, wind: wind}, n - 1)
   end
 
-  def drop_rock(s, [w | rest], rocks) do
-    # IO.inspect({:drop_rock, s, <<w>>})
+  def drop_rock(s, [{w, _idx} | rest], rocks) do
     w_fn = wind(w)
     new_s = Enum.map(s, &w_fn.(&1))
-    # IO.inspect({:wind_shape, new_s})
-    # IO.inspect({:hits_wall?, shape_hits_wall?(new_s)})
-    # IO.inspect({:hits_rock?, shape_hits_rock?(new_s, rocks)})
     new_s = if shape_hits_wall?(new_s) || shape_hits_rock?(new_s, rocks), do: s, else: new_s
-    # IO.inspect({:post_wind_shape, new_s})
     drop_s = Enum.map(new_s, &down/1)
-    # IO.inspect({:drop_shape, drop_s})
-    # IO.inspect({:drop_hits_rock?, shape_hits_rock?(drop_s, rocks)})
+
     if shape_hits_rock?(drop_s, rocks) do
-      # print(MapSet.union(rocks, MapSet.new(new_s)))
       {new_s, rest}
     else
-      # print(MapSet.union(rocks, MapSet.new(drop_s)))
       drop_rock(drop_s, rest, rocks)
+    end
+  end
+
+  def find_cycle(
+        tunnel = %Tunnel{rocks: rocks, wind: wind, shapes: [sd | shapes]},
+        history \\ %{},
+        cnt \\ 1
+      ) do
+    if Integer.mod(cnt, 1000) == 0 do
+      IO.inspect({:dropping_rock, cnt})
+    end
+
+    floor = highest_point(rocks)
+    s = shape(sd, floor + 4)
+    {result, wind} = drop_rock(s, wind, rocks)
+    rocks = Enum.reduce(result, rocks, &MapSet.put(&2, &1))
+
+    top = highest_point(rocks)
+
+    heights =
+      Enum.map(1..7, &highest_point_in_col(rocks, &1))
+      |> Enum.map(&(top - &1))
+
+    {_wdir, wind_idx} = hd(wind)
+
+    key =
+      {heights, Integer.mod(cnt, tunnel.num_shapes), Integer.mod(wind_idx + 1, tunnel.num_wind)}
+
+    if Map.has_key?(history, key) do
+      %{matching_key: key, value: Map.get(history, key), curr_cnt: cnt, curr_top: top}
+    else
+      history = Map.put(history, key, {cnt, top})
+      find_cycle(%Tunnel{tunnel | rocks: rocks, shapes: shapes, wind: wind}, history, cnt + 1)
     end
   end
 
@@ -134,7 +168,7 @@ end
 ## Part 1
 
 ```elixir
-input
+test_input
 |> Tunnel.parse()
 |> Tunnel.drop(2022)
 ```
@@ -144,5 +178,87 @@ Guessed 3208, answer is too low. Turned out copying and pasting the input only c
 ## Part 2
 
 ```elixir
-
+test_input
+|> Tunnel.parse()
+|> Tunnel.find_cycle()
 ```
+
+test input cycle info: %{curr_cnt: 308, curr_top: 473, matching_key: {[2, 2, 0, 2, 3, 5, 7], 3, 28}, value: {28, 49}}
+
+with algo that uses the right wind index: %{curr_cnt: 63, curr_top: 102, matching_key: {[2, 2, 0, 2, 3, 5, 7], 3, 28}, value: {28, 49}}
+
+```elixir
+target = 1_000_000_000_000
+target = target - 28
+cycle_size = 63 - 28
+cycle_height = 102 - 49
+cycle_cnt = floor(target / cycle_size)
+r = rem(target, cycle_size)
+IO.inspect({:rem, r})
+
+start_height = 49
+loop_size = cycle_cnt * cycle_height
+extra = 131 - 102
+
+start_height + loop_size + extra
+```
+
+```elixir
+test_input
+|> Tunnel.parse()
+|> Tunnel.drop(63 + 22)
+```
+
+Real inputs for Part 2
+
+```elixir
+input
+|> Tunnel.parse()
+|> Tunnel.find_cycle()
+```
+
+```elixir
+curr_cnt = 1966
+curr_top = 3150
+# first field of value
+first_cnt = 221
+# second field of value
+first_top = 367
+
+target = 1_000_000_000_000
+# first field of value
+target = target - first_cnt
+# curr_cnt - first field of value
+cycle_size = curr_cnt - first_cnt
+# curr_top - second field of value
+cycle_height = curr_top - first_top
+cycle_cnt = floor(target / cycle_size)
+r = rem(target, cycle_size)
+# plug this into drop sim below
+IO.inspect({:rem, r})
+
+extra_part =
+  input
+  |> Tunnel.parse()
+  # curr_cnt + rem from above
+  |> Tunnel.drop(curr_cnt + r)
+
+# second field of value
+start_height = first_top
+loop_size = cycle_cnt * cycle_height
+# drop_value from below - curr_top
+extra = extra_part - curr_top
+
+start_height + loop_size + extra
+```
+
+```elixir
+input
+|> Tunnel.parse()
+# curr_cnt + rem from above
+|> Tunnel.drop(198 + 12)
+```
+
+Guessed 3865277773063, your guess is too high
+
+Guessed 1618181818193, your guess is too high
