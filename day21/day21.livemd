@@ -1,0 +1,165 @@
+# Day 21
+
+## Setup
+
+```elixir
+test_input = """
+root: pppw + sjmn
+dbpl: 5
+cczh: sllz + lgvd
+zczc: 2
+ptdq: humn - dvpt
+dvpt: 3
+lfqf: 4
+humn: 5
+ljgn: 2
+sjmn: drzm * dbpl
+sllz: 4
+pppw: cczh / lfqf
+lgvd: ljgn * ptdq
+drzm: hmdt - zczc
+hmdt: 32
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Monkeys do
+  defmodule Node do
+    defstruct [:name, :op, :left, :right, :value]
+  end
+
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&parse_one/1)
+    |> Enum.into(%{})
+  end
+
+  defp parse_one(str) do
+    str
+    |> String.split(":")
+    |> Enum.map(&String.trim/1)
+    |> parse_args()
+  end
+
+  defp parse_args([n, <<left::binary-size(4), " + ", right::binary-size(4)>>]) do
+    {n, %Node{name: n, op: fn x, y -> x + y end, left: left, right: right, value: nil}}
+  end
+
+  defp parse_args([n, <<left::binary-size(4), " - ", right::binary-size(4)>>]) do
+    {n, %Node{name: n, op: fn x, y -> x - y end, left: left, right: right, value: nil}}
+  end
+
+  defp parse_args([n, <<left::binary-size(4), " * ", right::binary-size(4)>>]) do
+    {n, %Node{name: n, op: fn x, y -> x * y end, left: left, right: right, value: nil}}
+  end
+
+  defp parse_args([n, <<left::binary-size(4), " / ", right::binary-size(4)>>]) do
+    {n, %Node{name: n, op: fn x, y -> div(x, y) end, left: left, right: right, value: nil}}
+  end
+
+  defp parse_args([n, str]) do
+    {n, %Node{name: n, op: nil, left: nil, right: nil, value: String.to_integer(str)}}
+  end
+
+  def get_value(m, name) do
+    # if name == "humn" do
+    #  IO.puts("HUMN")
+    # end
+    node = Map.get(m, name)
+
+    if node.value != nil do
+      {m, node.value}
+    else
+      {m, left_value} = get_value(m, node.left)
+      {m, right_value} = get_value(m, node.right)
+      new_val = node.op.(left_value, right_value)
+      {Map.put(m, node.name, %Node{node | value: new_val}), new_val}
+    end
+  end
+
+  def get_right(m) do
+    root = Map.get(m, "root")
+    get_value(m, root.right)
+  end
+
+  def get_left(m, humn_value) do
+    root = Map.get(m, "root")
+
+    humn = Map.get(m, "humn")
+    m = Map.put(m, "humn", %Node{humn | value: humn_value})
+    {_left_m, left_value} = get_value(m, root.left)
+    left_value
+  end
+
+  def bin_search(m) do
+    {right_map, right_val} = get_right(m)
+
+    do_search(right_map, right_val, 0, 10_000_000_000_000, 50)
+  end
+
+  defp do_search(m, target, low, high, cnt) do
+    mid = Integer.floor_div(high - low, 2) + low
+    IO.inspect({:range, low, mid, high})
+    mid_val = get_left(m, mid)
+    IO.inspect({mid, mid_val, :target, target, :diff, target - mid_val})
+
+    cond do
+      mid_val == target -> mid
+      cnt <= 0 -> nil
+      mid_val > target -> do_search(m, target, mid, high, cnt - 1)
+      mid_val < target -> do_search(m, target, low, mid, cnt - 1)
+    end
+  end
+end
+```
+
+## Part 1
+
+```elixir
+{m, val} =
+  input
+  |> Monkeys.parse()
+  |> Monkeys.get_value("root")
+
+val
+```
+
+## Part 2
+
+By inspection, the output is linear to the input and `humn` only appears in the left branch of the tree.
+
+```elixir
+m = Monkeys.parse(input)
+{rm, rv} = Monkeys.get_right(m)
+IO.inspect({:right, rv})
+
+b = Monkeys.get_left(m, 0)
+IO.inspect({:b, b})
+ten_val = Monkeys.get_left(m, 10)
+IO.inspect({:ten_val, ten_val})
+slope = (ten_val - b) / 10
+IO.inspect({:slope, slope})
+```
+
+```elixir
+# y = mx + b
+# rv = -6x + b
+(rv - b) / -6
+
+-6 * 3_952_673_930_912 + b
+```
+
+Dunno, somethings wrong with my linear equation. Just binary search the space instead.
+
+```elixir
+v = Monkeys.get_left(m, 3_952_673_930_912)
+IO.inspect({:v, v})
+rv - v
+```
+
+```elixir
+Monkeys.bin_search(m)
+```
