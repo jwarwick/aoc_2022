@@ -97,30 +97,16 @@ defmodule Maze do
 
   def move_cube(arg, {curr, heading, map}) when arg == :right or arg == :left do
     new_heading = turn(arg, heading)
-    IO.inspect({:turn, arg, :curr, heading, :new, new_heading})
+    # IO.inspect({:turn, arg, :curr, heading, :new, new_heading})
     {curr, new_heading, map}
   end
 
   def move_cube({:move, dist}, {curr, heading, map}) do
     {final, new_heading} = step_cube(dist, curr, heading, map)
-    IO.inspect({:move, dist, heading})
-    IO.inspect({:final_loc, final, new_heading})
+    # IO.inspect({:move, dist, heading})
+    # IO.inspect({:final_loc, final, new_heading})
     {final, new_heading, map}
   end
-
-  def step_cube(0, curr, h, _m), do: {curr, h}
-
-  def step_cube(dist, curr, h, m) do
-    next = next_loc(curr, h)
-
-    case Map.get(m, next, :wrap) do
-      :wall -> {curr, h}
-      :open -> step_cube(dist - 1, next, h, m)
-      :wrap -> do_cube_wrap(dist, curr, h, m)
-    end
-  end
-
-  def do_cube_wrap(XXX)
 
   defp turn(:right, :>), do: :v
   defp turn(:right, :v), do: :<
@@ -216,14 +202,78 @@ defmodule Maze do
   def next_loc({x, y}, :<), do: {x - 1, y}
   def next_loc({x, y}, :^), do: {x, y - 1}
   def next_loc({x, y}, :v), do: {x, y + 1}
+
+  def step_cube(0, curr, h, _m), do: {curr, h}
+
+  def step_cube(dist, curr, h, m) do
+    next = next_loc(curr, h)
+
+    case Map.get(m, next, :wrap) do
+      :wall -> {curr, h}
+      :open -> step_cube(dist - 1, next, h, m)
+      :wrap -> do_cube_wrap(dist, curr, h, m)
+    end
+  end
+
+  def do_cube_wrap(dist, curr = {x, y}, heading, map) do
+    # test_cube_size = 4
+    # test_cube_map = %{
+    #  {{2, 1}, :>} => {:v, fn {_x,y} -> {15-(y-4), 8} end},
+    #  {{2, 2}, :v} => {:^, fn {x,_y} -> {11-x , 7} end},
+    #  {{1, 1}, :^} => {:>, fn {x,_y} -> {8, x-4} end},
+    # }
+    cube_size = 50
+
+    cube_map = %{
+      {{1, 0}, :^} => {:>, fn {x, _y} -> {0, x + 100} end},
+      {{1, 0}, :<} => {:>, fn {_x, y} -> {0, 149 - y} end},
+      {{0, 3}, :<} => {:v, fn {_x, y} -> {y - 100, 0} end},
+      {{0, 3}, :>} => {:^, fn {_x, y} -> {y - 100, 149} end},
+      {{0, 3}, :v} => {:v, fn {x, _y} -> {x + 100, 0} end},
+      {{0, 2}, :<} => {:>, fn {_x, y} -> {50, 49 - (y - 100)} end},
+      {{0, 2}, :^} => {:>, fn {x, _y} -> {50, x + 50} end},
+      {{2, 0}, :^} => {:^, fn {x, _y} -> {x - 100, 199} end},
+      {{2, 0}, :>} => {:<, fn {_x, y} -> {99, 100 + (49 - y)} end},
+      {{2, 0}, :v} => {:<, fn {x, _y} -> {99, x - 50} end},
+      {{1, 1}, :<} => {:v, fn {_x, y} -> {y - 50, 100} end},
+      {{1, 1}, :>} => {:^, fn {_x, y} -> {y + 50, 49} end},
+      {{1, 2}, :v} => {:<, fn {x, _y} -> {49, x + 100} end},
+      {{1, 2}, :>} => {:<, fn {_x, y} -> {149, 49 - (y - 100)} end}
+    }
+
+    face = {Integer.floor_div(x, cube_size), Integer.floor_div(y, cube_size)}
+    mapping = Map.get(cube_map, {face, heading})
+
+    if nil == mapping do
+      raise "no mapping for #{inspect(curr)} : #{inspect(face)}, #{inspect(heading)}"
+    else
+      {new_heading, trans} = mapping
+      new_loc = trans.(curr)
+      IO.inspect({:wrapped_to, face, curr, heading, :new, new_loc, new_heading})
+
+      case Map.get(map, new_loc) do
+        :wall -> {curr, heading}
+        :open -> step_cube(dist - 1, new_loc, new_heading, map)
+        nil -> raise "mapped to an invalid map point #{inspect(new_loc)}"
+      end
+    end
+  end
 end
 ```
+
+### Part2 guesses
+
+* 24592 is too low
+* 43466 is too low
+* 108213 is wrong
+* 145171 is wrong
+* 188089 is too high
 
 ## Part 1
 
 ```elixir
-maze = Maze.parse(input)
-Maze.traverse(maze)
+Maze.parse(input)
+|> Maze.traverse()
 ```
 
 ## Part 2
