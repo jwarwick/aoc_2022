@@ -1,0 +1,234 @@
+# Day 22
+
+## Setup
+
+```elixir
+test_input = """
+        ...#
+        .#..
+        #...
+        ....
+...#.......#
+........#...
+..#....#....
+..........#.
+        ...#....
+        .....#..
+        .#......
+        ......#.
+
+10R5L5R10L4R5L5
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Maze do
+  defstruct [:map, :instr]
+
+  def parse(str) do
+    [point_str, instr_str] = String.split(str, "\n\n", trim: true)
+
+    points =
+      point_str
+      |> String.split("\n", trim: true)
+      |> Enum.with_index()
+      |> Enum.map(&parse_line/1)
+      |> List.flatten()
+      |> Enum.into(%{})
+
+    instr =
+      instr_str
+      |> String.trim()
+      |> parse_instr([])
+
+    %Maze{map: points, instr: instr}
+  end
+
+  defp parse_instr(<<>>, acc), do: Enum.reverse(acc)
+
+  defp parse_instr(<<?R, rest::binary>>, acc) do
+    parse_instr(rest, [:right | acc])
+  end
+
+  defp parse_instr(<<?L, rest::binary>>, acc) do
+    parse_instr(rest, [:left | acc])
+  end
+
+  defp parse_instr(str, acc) do
+    {val, rest} = Integer.parse(str)
+    parse_instr(rest, [{:move, val} | acc])
+  end
+
+  defp parse_line({str, y}) do
+    str
+    |> String.to_charlist()
+    |> Enum.with_index()
+    |> Enum.map(fn {c, x} -> {{x, y}, convert_char(c)} end)
+    |> Enum.reject(fn {_, v} -> v == nil end)
+  end
+
+  defp convert_char(?#), do: :wall
+  defp convert_char(?.), do: :open
+  defp convert_char(_), do: nil
+
+  def get_start(%Maze{map: map}) do
+    Map.to_list(map)
+    |> Enum.filter(fn {{_, y}, _} -> y == 0 end)
+    |> Enum.map(fn {{x, y}, _} -> {x, y} end)
+    |> Enum.sort()
+    |> hd()
+  end
+
+  def traverse(m = %Maze{map: map, instr: instr}) do
+    curr = get_start(m)
+    heading = :>
+    {{x, y}, h, _m} = Enum.reduce(instr, {curr, heading, map}, &move/2)
+    1000 * (y + 1) + 4 * (x + 1) + value(h)
+  end
+
+  def traverse_cube(m = %Maze{map: map, instr: instr}) do
+    curr = get_start(m)
+    heading = :>
+    {{x, y}, h, _m} = Enum.reduce(instr, {curr, heading, map}, &move_cube/2)
+    1000 * (y + 1) + 4 * (x + 1) + value(h)
+  end
+
+  def move_cube(arg, {curr, heading, map}) when arg == :right or arg == :left do
+    new_heading = turn(arg, heading)
+    IO.inspect({:turn, arg, :curr, heading, :new, new_heading})
+    {curr, new_heading, map}
+  end
+
+  def move_cube({:move, dist}, {curr, heading, map}) do
+    {final, new_heading} = step_cube(dist, curr, heading, map)
+    IO.inspect({:move, dist, heading})
+    IO.inspect({:final_loc, final, new_heading})
+    {final, new_heading, map}
+  end
+
+  def step_cube(0, curr, h, _m), do: {curr, h}
+
+  def step_cube(dist, curr, h, m) do
+    next = next_loc(curr, h)
+
+    case Map.get(m, next, :wrap) do
+      :wall -> {curr, h}
+      :open -> step_cube(dist - 1, next, h, m)
+      :wrap -> do_cube_wrap(dist, curr, h, m)
+    end
+  end
+
+  def do_cube_wrap(XXX)
+
+  defp turn(:right, :>), do: :v
+  defp turn(:right, :v), do: :<
+  defp turn(:right, :<), do: :^
+  defp turn(:right, :^), do: :>
+  defp turn(:left, :>), do: :^
+  defp turn(:left, :v), do: :>
+  defp turn(:left, :<), do: :v
+  defp turn(:left, :^), do: :<
+
+  defp value(:>), do: 0
+  defp value(:v), do: 1
+  defp value(:<), do: 2
+  defp value(:^), do: 3
+
+  def move(arg, {curr, heading, map}) when arg == :right or arg == :left do
+    new_heading = turn(arg, heading)
+    IO.inspect({:turn, arg, :curr, heading, :new, new_heading})
+    {curr, new_heading, map}
+  end
+
+  def move({:move, dist}, {curr, heading, map}) do
+    {final, new_heading} = step(dist, curr, heading, map)
+    IO.inspect({:move, dist, heading})
+    IO.inspect({:final_loc, final, new_heading})
+    {final, new_heading, map}
+  end
+
+  def step(0, curr, h, _m), do: {curr, h}
+
+  def step(dist, curr, h, m) do
+    next = next_loc(curr, h)
+
+    case Map.get(m, next, :wrap) do
+      :wall -> {curr, h}
+      :open -> step(dist - 1, next, h, m)
+      :wrap -> do_wrap(dist, curr, h, m)
+    end
+  end
+
+  def do_wrap(dist, curr, heading, m) do
+    next =
+      case heading do
+        :> -> get_min_col(curr, m)
+        :< -> get_max_col(curr, m)
+        :^ -> get_max_row(curr, m)
+        :v -> get_min_row(curr, m)
+      end
+
+    IO.inspect({:doing_wrap, next})
+
+    case Map.get(m, next, :wrap) do
+      :wall -> {curr, heading}
+      :open -> step(dist - 1, next, heading, m)
+    end
+  end
+
+  def get_min_row({curr_x, _curr_y}, m) do
+    Map.to_list(m)
+    |> Enum.filter(fn {{x, _}, _} -> x == curr_x end)
+    |> Enum.map(fn {{x, y}, _} -> {x, y} end)
+    |> Enum.sort()
+    |> hd()
+  end
+
+  def get_max_row({curr_x, _curr_y}, m) do
+    Map.to_list(m)
+    |> Enum.filter(fn {{x, _}, _} -> x == curr_x end)
+    |> Enum.map(fn {{x, y}, _} -> {x, y} end)
+    |> Enum.sort()
+    |> Enum.reverse()
+    |> hd()
+  end
+
+  def get_min_col({_curr_x, curr_y}, m) do
+    Map.to_list(m)
+    |> Enum.filter(fn {{_, y}, _} -> y == curr_y end)
+    |> Enum.map(fn {{x, y}, _} -> {x, y} end)
+    |> Enum.sort()
+    |> hd()
+  end
+
+  def get_max_col({_curr_x, curr_y}, m) do
+    Map.to_list(m)
+    |> Enum.filter(fn {{_, y}, _} -> y == curr_y end)
+    |> Enum.map(fn {{x, y}, _} -> {x, y} end)
+    |> Enum.sort()
+    |> Enum.reverse()
+    |> hd()
+  end
+
+  def next_loc({x, y}, :>), do: {x + 1, y}
+  def next_loc({x, y}, :<), do: {x - 1, y}
+  def next_loc({x, y}, :^), do: {x, y - 1}
+  def next_loc({x, y}, :v), do: {x, y + 1}
+end
+```
+
+## Part 1
+
+```elixir
+maze = Maze.parse(input)
+Maze.traverse(maze)
+```
+
+## Part 2
+
+```elixir
+maze = Maze.parse(input)
+Maze.traverse_cube(maze)
+```
