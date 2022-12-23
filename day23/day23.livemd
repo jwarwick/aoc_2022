@@ -1,0 +1,179 @@
+# Day 23
+
+## Setup
+
+```elixir
+test_input = """
+....#..
+..###.#
+#...#.#
+.#...##
+#.###..
+##.#.##
+.#..#..
+"""
+
+small_input = """
+.....
+..##.
+..#..
+.....
+..##.
+.....
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Elves do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.reduce(MapSet.new(), &parse_row/2)
+  end
+
+  defp parse_row({str, row}, acc) do
+    str
+    |> String.to_charlist()
+    |> Enum.with_index()
+    |> Enum.filter(fn {c, _idx} -> c == ?# end)
+    |> Enum.reduce(acc, fn {_c, idx}, acc -> MapSet.put(acc, {idx, row}) end)
+  end
+
+  @directions [:north, :south, :west, :east]
+
+  def range(set) do
+    pts = MapSet.to_list(set)
+    xs = Enum.map(pts, fn {x, _y} -> x end)
+    xrange = Enum.min_max(xs)
+    ys = Enum.map(pts, fn {_x, y} -> y end)
+    yrange = Enum.min_max(ys)
+    {xrange, yrange}
+  end
+
+  def print(set) do
+    {{minx, maxx}, {miny, maxy}} = range(set)
+    IO.puts("-----------------------------------")
+    IO.puts("#{minx}, #{miny}")
+
+    for y <- miny..maxy do
+      for x <- minx..maxx do
+        val = if MapSet.member?(set, {x, y}), do: "#", else: "."
+        val = if x == 0 && y == 0, do: "X", else: val
+        IO.write(val)
+      end
+
+      IO.write("\n")
+    end
+
+    IO.write("\n\n")
+  end
+
+  def walk(set, rounds, cnt \\ 0)
+
+  def walk(set, 0, cnt) do
+    IO.puts("Round #{cnt}")
+    # print(set)
+    {{minx, maxx}, {miny, maxy}} = range(set)
+    width = maxx - minx + 1
+    height = maxy - miny + 1
+    area = width * height
+    area - MapSet.size(set)
+  end
+
+  def walk(set, rounds, cnt) do
+    # IO.puts("Round #{cnt}")
+    # print(set)
+    dirs =
+      for offset <- 0..3 do
+        Enum.at(@directions, Integer.mod(cnt + offset, length(@directions)))
+      end
+
+    pts = MapSet.to_list(set)
+    no_neigh = Enum.reject(pts, &has_neighbor?(&1, set))
+    # IO.inspect({:no_neigh, no_neigh})
+
+    # IO.puts("Have neighbors:")
+    has_neigh =
+      pts
+      |> Enum.filter(&has_neighbor?(&1, set))
+      # |> IO.inspect()
+      |> Enum.map(&propose_move(&1, dirs, set))
+
+    proposed = Enum.map(has_neigh, fn {_, p} -> p end)
+
+    proposed_cnts =
+      Enum.reduce(proposed, %{}, fn pt, acc -> Map.update(acc, pt, 1, &(&1 + 1)) end)
+
+    new_pts =
+      Enum.map(
+        has_neigh,
+        fn {old, new} -> if 1 == Map.get(proposed_cnts, new), do: new, else: old end
+      )
+
+    new_set = MapSet.new(no_neigh ++ new_pts)
+
+    new_rounds = if length(has_neigh) == 0, do: 0, else: rounds - 1
+
+    walk(new_set, new_rounds, cnt + 1)
+  end
+
+  def propose_move(pt, [], _set), do: {pt, pt}
+
+  def propose_move(pt, [dir | rest], set) do
+    if has_neighbor_dir?(pt, dir, set) do
+      propose_move(pt, rest, set)
+    else
+      # IO.inspect({:proposed, pt, dir, move(dir, pt)})
+      {pt, move(dir, pt)}
+    end
+  end
+
+  def move(:north, {x, y}), do: {x, y - 1}
+  def move(:south, {x, y}), do: {x, y + 1}
+  def move(:east, {x, y}), do: {x + 1, y}
+  def move(:west, {x, y}), do: {x - 1, y}
+
+  def has_neighbor_dir?(pt, dir, set) do
+    neighs =
+      neighbors(dir, pt)
+      |> Enum.filter(&MapSet.member?(set, &1))
+
+    length(neighs) != 0
+  end
+
+  def neighbors(:north, {x, y}), do: [{x - 1, y - 1}, {x, y - 1}, {x + 1, y - 1}]
+  def neighbors(:south, {x, y}), do: [{x - 1, y + 1}, {x, y + 1}, {x + 1, y + 1}]
+  def neighbors(:west, {x, y}), do: [{x - 1, y - 1}, {x - 1, y}, {x - 1, y + 1}]
+  def neighbors(:east, {x, y}), do: [{x + 1, y - 1}, {x + 1, y}, {x + 1, y + 1}]
+
+  def has_neighbor?(pt, set) do
+    for d <- [:north, :south, :east, :west] do
+      has_neighbor_dir?(pt, d, set)
+    end
+    |> Enum.any?(&(&1 == true))
+  end
+end
+
+input
+|> Elves.parse()
+|> Elves.walk(10)
+```
+
+## Part 1
+
+```elixir
+input
+|> Elves.parse()
+|> Elves.walk(10)
+```
+
+## Part 2
+
+```elixir
+input
+|> Elves.parse()
+|> Elves.walk(1000)
+```
