@@ -1,0 +1,266 @@
+# Day 24
+
+## Setup
+
+```elixir
+simple_input = """
+#.#####
+#.....#
+#>....#
+#.....#
+#...v.#
+#.....#
+#####.#
+"""
+
+test_input = """
+#.######
+#>>.<^<#
+#.<..<<#
+#>v.><>#
+#<^v^^>#
+######.#
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Valley do
+  defstruct [:start, :target, :board_state]
+  @max_steps 1000
+  # @mod 12 # test_input
+  # input
+  @mod 600
+  def parse(str) do
+    m =
+      str
+      |> String.split("\n", trim: true)
+      |> Enum.with_index()
+      |> Enum.reduce(%{}, &parse_row/2)
+
+    {start, target, row_wrap, col_wrap} = find_start_end(m)
+    {sx, sy} = start
+    m = Map.put(m, {sx, sy - 1}, :wall)
+    {tx, ty} = target
+    m = Map.put(m, {tx, ty + 1}, :wall)
+
+    l =
+      Map.to_list(m)
+      |> Enum.reject(fn {_loc, v} -> v == :space end)
+
+    board_state = %{0 => {0, l, list_to_set(l)}}
+
+    board_state =
+      Enum.reduce(
+        1..@max_steps,
+        board_state,
+        fn n, acc -> Map.put(acc, n, compute_state(n, acc, row_wrap, col_wrap)) end
+      )
+
+    _states =
+      Map.to_list(board_state)
+      |> Enum.map(fn {_t, {t, pts, _set}} -> {t, Enum.sort(pts)} end)
+      |> Enum.sort()
+      |> Enum.reduce_while(%{}, &check_cycle/2)
+
+    %Valley{start: start, target: target, board_state: board_state}
+  end
+
+  defp check_cycle({t, s}, acc) do
+    if Map.has_key?(acc, s) do
+      IO.inspect({:match, t, Map.get(acc, s)})
+      {:halt, acc}
+    else
+      {:cont, Map.put(acc, s, t)}
+    end
+  end
+
+  def parse_row({str, row_idx}, acc) do
+    str
+    |> String.to_charlist()
+    |> Enum.map(&convert/1)
+    |> Enum.with_index()
+    |> Enum.reduce(acc, fn {v, col_idx}, acc -> Map.put(acc, {col_idx, row_idx}, v) end)
+  end
+
+  defp compute_state(t, board_states, row_wrap, col_wrap) do
+    {_cnt, pts, _set} = Map.get(board_states, t - 1)
+    m = Map.new(pts)
+    new_pts = Enum.map(pts, &move_point(&1, m, row_wrap, col_wrap))
+    {t, new_pts, list_to_set(new_pts)}
+  end
+
+  defp move_point(pt = {_loc, :wall}, _m, _, _), do: pt
+
+  defp move_point(pt, m, row_wrap, col_wrap) do
+    new_pt = {new_loc, _heading} = move(pt)
+
+    case Map.get(m, new_loc, :space) do
+      :wall -> wrap(new_pt, row_wrap, col_wrap)
+      _ -> new_pt
+    end
+  end
+
+  defp wrap({{_x, y}, :>}, _, _), do: {{1, y}, :>}
+  defp wrap({{x, _y}, :v}, _, _), do: {{x, 1}, :v}
+  defp wrap({{_x, y}, :<}, _row_wrap, col_wrap), do: {{col_wrap, y}, :<}
+  defp wrap({{x, _y}, :^}, row_wrap, _col_wrap), do: {{x, row_wrap}, :^}
+
+  defp move({{x, y}, :>}), do: {{x + 1, y}, :>}
+  defp move({{x, y}, :<}), do: {{x - 1, y}, :<}
+  defp move({{x, y}, :^}), do: {{x, y - 1}, :^}
+  defp move({{x, y}, :v}), do: {{x, y + 1}, :v}
+
+  defp list_to_set(l) do
+    Enum.reduce(l, MapSet.new(), fn {loc, _v}, acc -> MapSet.put(acc, loc) end)
+  end
+
+  def print(l) do
+    m = Map.new(l)
+
+    for y <- -1..7 do
+      for x <- 0..7 do
+        v = Map.get(m, {x, y}, :space)
+        IO.write(convert(v))
+      end
+
+      IO.write("\n")
+    end
+
+    IO.write("\n")
+  end
+
+  defp find_start_end(m) do
+    spaces =
+      m
+      |> Map.to_list()
+      |> Enum.filter(fn {_loc, v} -> v == :space end)
+      |> Enum.map(fn {loc, _} -> loc end)
+      |> Enum.sort(fn {_x1, y1}, {_x2, y2} -> y1 <= y2 end)
+
+    start = hd(spaces)
+    target = Enum.reverse(spaces) |> hd()
+
+    {_, max_row_wall} =
+      m
+      |> Map.to_list()
+      |> Enum.filter(fn {_loc, v} -> v == :wall end)
+      |> Enum.map(fn {loc, _} -> loc end)
+      |> Enum.sort(fn {_x1, y1}, {_x2, y2} -> y1 > y2 end)
+      |> hd()
+
+    {max_col_wall, _} =
+      m
+      |> Map.to_list()
+      |> Enum.filter(fn {_loc, v} -> v == :wall end)
+      |> Enum.map(fn {loc, _} -> loc end)
+      |> Enum.sort(fn {x1, _y1}, {x2, _y2} -> x1 > x2 end)
+      |> hd()
+
+    {start, target, max_row_wall - 1, max_col_wall - 1}
+  end
+
+  defp convert(?#), do: :wall
+  defp convert(:wall), do: "#"
+  defp convert(?.), do: :space
+  defp convert(:space), do: "."
+  defp convert(?>), do: :>
+  defp convert(:>), do: ">"
+  defp convert(?<), do: :<
+  defp convert(:<), do: "<"
+  defp convert(?^), do: :^
+  defp convert(:^), do: "^"
+  defp convert(?v), do: :v
+  defp convert(:v), do: "v"
+
+  def multicross(v) do
+    IO.inspect({:first})
+
+    first =
+      search([{0, v.start}], MapSet.new([{0, v.start}]), v.target, v.board_state, 100_000, false)
+
+    IO.inspect({first, :second})
+
+    second =
+      search(
+        [{first, v.target}],
+        MapSet.new([{first, v.target}]),
+        v.start,
+        v.board_state,
+        100_000,
+        true
+      )
+
+    IO.inspect({second, :third})
+
+    search(
+      [{second, v.start}],
+      MapSet.new([{second, v.start}]),
+      v.target,
+      v.board_state,
+      100_000,
+      false
+    )
+  end
+
+  def cross(v) do
+    search([{0, v.start}], MapSet.new([{0, v.start}]), v.target, v.board_state, 100_000, false)
+  end
+
+  def search([], _seen, _target, _board_states, best, _rev), do: best
+
+  def search([{t, target} | rest], seen, target, board_states, best, rev) do
+    new_best = if t < best, do: t, else: best
+    search(rest, seen, target, board_states, new_best, rev)
+  end
+
+  def search([{t, loc} | rest], seen, target, board_states, best, rev) do
+    d = distance(loc, target)
+
+    if t + d > best do
+      search(rest, seen, target, board_states, best, rev)
+    else
+      {_, _, next_state} = Map.get(board_states, Integer.mod(t + 1, @mod))
+
+      neighbors =
+        moves(loc, rev)
+        |> Enum.reject(&MapSet.member?(next_state, &1))
+        |> Enum.map(&{t + 1, &1})
+        |> Enum.reject(&MapSet.member?(seen, &1))
+
+      new_seen = Enum.reduce(neighbors, seen, fn x, acc -> MapSet.put(acc, x) end)
+
+      search(neighbors ++ rest, new_seen, target, board_states, best, rev)
+    end
+  end
+
+  defp moves({x, y}, rev) do
+    if rev do
+      [{x, y - 1}, {x - 1, y}, {x, y + 1}, {x + 1, y}, {x, y}]
+    else
+      [{x, y + 1}, {x + 1, y}, {x, y - 1}, {x - 1, y}, {x, y}]
+    end
+  end
+
+  defp distance({x1, y1}, {x2, y2}) do
+    abs(x2 - x1) + abs(y2 - y1)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+input
+|> Valley.parse()
+|> Valley.cross()
+```
+
+## Part 2
+
+```elixir
+input
+|> Valley.parse()
+|> Valley.multicross()
+```
