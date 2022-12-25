@@ -1,0 +1,75 @@
+# Day 25
+
+## Setup
+
+```elixir
+test_input = """
+1=-0-2
+12111
+2=0=
+21
+2=01
+111
+20012
+112
+1=-1=
+1-12
+12
+1=
+122
+"""
+
+input = File.read!("./input.txt")
+```
+
+```elixir
+defmodule Snafu do
+  def parse(str) do
+    str
+    |> String.split("\n", trim: true)
+    |> Enum.map(&to_integer/1)
+  end
+
+  def to_integer(str) do
+    str
+    |> String.to_charlist()
+    |> Enum.map(&convert_char/1)
+    |> Enum.reverse()
+    |> Enum.with_index()
+    |> Enum.map(fn {x, p} -> x * 5 ** p end)
+    |> Enum.sum()
+  end
+
+  def from_integer(num) do
+    do_rem(num, [])
+  end
+
+  def do_rem(0, acc), do: Enum.join(acc)
+
+  def do_rem(num, acc) do
+    r = rem(num, 5)
+    d = div(num, 5)
+    # IO.inspect({num, :div, d, :rem, r})
+    case r do
+      0 -> do_rem(d, ["0" | acc])
+      1 -> do_rem(d, ["1" | acc])
+      2 -> do_rem(d, ["2" | acc])
+      3 -> do_rem(d + 1, ["=" | acc])
+      4 -> do_rem(d + 1, ["-" | acc])
+    end
+  end
+
+  def convert_char(?=), do: -2
+  def convert_char(?-), do: -1
+  def convert_char(c), do: String.to_integer(<<c>>)
+end
+```
+
+## Part 1
+
+```elixir
+input
+|> Snafu.parse()
+|> Enum.sum()
+|> Snafu.from_integer()
+```
