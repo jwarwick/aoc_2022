@@ -142,45 +142,118 @@ defmodule Valves do
       Map.keys(valves)
       |> Enum.reject(fn k -> Map.get(valves, k).rate == 0 end)
 
-    do_plan2([{{"AA", time}, {"AA", time}, keys, []}], v, 0)
+    do_plan2([{{"AA", 0}, {"AA", 0}, keys, 0, 0}], time, v, 0)
   end
 
-  defp do_plan2([], _, best), do: best
+  defp do_plan2([], _, _, best), do: best
 
-  defp do_plan2([{_a, _b, [], acc} | rest], v, best) do
-    handle_end2(acc, rest, v, best)
+  defp do_plan2(
+         [{{l1, l1_time}, {l2, l2_time}, [], _curr_time, total} | rest],
+         target_time,
+         v = %Valves{valves: valves},
+         best
+       ) do
+    l1_value = curr_value(l1, l1_time, target_time, valves)
+    l2_value = curr_value(l2, l2_time, target_time, valves)
+    new_total = total + l1_value + l2_value
+    new_best = if new_total > best, do: new_total, else: best
+
+    if new_best > best do
+      IO.inspect({:done1, new_best})
+    end
+
+    do_plan2(rest, target_time, v, new_best)
   end
 
-  defp do_plan2([{{_a, time1}, {_b, time2}, _left, acc} | rest], v, best)
-       when time1 <= 0 and time2 <= 0 do
-    handle_end2(acc, rest, v, best)
+  defp do_plan2([{{_a, _t1}, {_b, _t2}, _left, curr_time, total} | rest], target_time, v, best)
+       when curr_time >= target_time do
+    new_best = if total > best, do: total, else: best
+
+    if new_best > best do
+      IO.inspect({:done2, new_best})
+    end
+
+    do_plan2(rest, target_time, v, new_best)
   end
 
-  defp do_plan2([{{l1, t1}, {l2, t2}, left, acc} | rest], v = %Valves{}, best) do
-    next1 = Enum.map(left, &npv(l1, &1, t1, v))
-    next2 = Enum.map(left, &npv(l2, &1, t2, v))
+  defp do_plan2(
+         [{{l1, curr_time}, {l2, curr_time}, left, curr_time, total} | rest],
+         target_time,
+         v = %Valves{valves: valves},
+         best
+       ) do
+    l1_value = curr_value(l1, curr_time, target_time, valves)
+    l2_value = curr_value(l2, curr_time, target_time, valves)
+    new_total = total + l1_value + l2_value
+
+    next1 = Enum.map(left, &future_state(l1, &1, curr_time, v))
+    next2 = Enum.map(left, &future_state(l2, &1, curr_time, v))
 
     combined =
-      for n1 = {_, d1, _} <- next1, n2 = {_, d2, _} <- next2, d1 != d2 do
-        npv_to_node2(n1, n2, left, acc)
+      for {dest1, time1} <- next1, {dest2, time2} <- next2, dest1 != dest2 do
+        new_time = min(time1, time2)
+
+        {{dest1, time1}, {dest2, time2}, List.delete(List.delete(left, dest1), dest2), new_time,
+         new_total}
       end
 
-    do_plan2(combined ++ rest, v, best)
+    # IO.inspect({:both, curr_time, combined})
+
+    do_plan2(combined ++ rest, target_time, v, best)
   end
 
-  defp npv_to_node2(n1 = {_v1, d1, t1}, n2 = {_v2, d2, t2}, left, acc) do
-    {
-      {d1, t1},
-      {d2, t2},
-      List.delete(List.delete(left, d1), d2),
-      [n1, n2] ++ acc
-    }
+  defp do_plan2(
+         [{{l1, curr_time}, {l2, l2_time}, left, curr_time, total} | rest],
+         target_time,
+         v = %Valves{valves: valves},
+         best
+       ) do
+    l1_value = curr_value(l1, curr_time, target_time, valves)
+    new_total = total + l1_value
+
+    next1 = Enum.map(left, &future_state(l1, &1, curr_time, v))
+
+    combined =
+      for {dest1, time1} <- next1 do
+        new_time = min(time1, l2_time)
+        {{dest1, time1}, {l2, l2_time}, List.delete(left, dest1), new_time, new_total}
+      end
+
+    # IO.inspect({:left, curr_time, combined})
+
+    do_plan2(combined ++ rest, target_time, v, best)
   end
 
-  defp handle_end2(acc, rest, v, best) do
-    total = sum_values(acc)
-    new_best = if total > best, do: total, else: best
-    do_plan2(rest, v, new_best)
+  defp do_plan2(
+         [{{l1, l1_time}, {l2, curr_time}, left, curr_time, total} | rest],
+         target_time,
+         v,
+         best
+       ) do
+    do_plan2(
+      [{{l2, curr_time}, {l1, l1_time}, left, curr_time, total} | rest],
+      target_time,
+      v,
+      best
+    )
+  end
+
+  defp do_plan2([{l1, l2, left, curr_time, total} | rest], target_time, v, best) do
+    raise("should be skipping time")
+    do_plan2([{l1, l2, left, curr_time + 1, total} | rest], target_time, v, best)
+  end
+
+  def curr_value(valve, curr_time, target_time, valves) do
+    rate = Map.get(valves, valve).rate
+    rem = target_time - curr_time
+    rem = if rem < 0, do: 0, else: rem
+    # IO.inspect({:value, valve, rate, curr_time, target_time, rate*rem})
+    rate * rem
+  end
+
+  def future_state(curr, dest, curr_time, %Valves{paths: paths}) do
+    {_, dist} = Map.get(paths, {curr, dest})
+    {dest, curr_time + dist + 1}
   end
 end
 ```
@@ -196,7 +269,7 @@ input
 ## Part 2
 
 ```elixir
-test_input
+input
 |> Valves.parse()
 |> Valves.plan2(26)
 ```
